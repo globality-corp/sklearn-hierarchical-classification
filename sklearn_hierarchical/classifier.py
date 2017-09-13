@@ -8,6 +8,7 @@ from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin
 from sklearn.utils.validation import check_consistent_length, check_is_fitted, check_X_y
 
+from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.graph import root_nodes
 
 
@@ -59,14 +60,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.class_hierarchy = class_hierarchy
         self.base_classifier = base_classifier
 
-    @property
-    def classes_(self):
-        return list(self.class_hierarchy.nodes())
-
-    @property
-    def n_classes_(self):
-        return len(self.classes_)
-
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
 
@@ -113,6 +106,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
+
+    @property
+    def classes_(self):
+        return list(
+            node
+            for node in self.graph_.nodes()
+            if node != ROOT
+        )
+
+    @property
+    def n_classes_(self):
+        return len(self.classes_)
 
     def _recursive_build_features(self, X, y, node_id):
         print("Building features for node: ", node_id)
