@@ -6,7 +6,7 @@ from itertools import product
 
 from networkx import DiGraph, gn_graph, to_dict_of_lists
 from sklearn.datasets import make_classification
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import LogisticRegression
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
 from sklearn_hierarchical.constants import ROOT
@@ -49,7 +49,7 @@ def make_base_classifier():
 
     """
     # Returns a multinomial naive bayes classifier by default
-    return MultinomialNB()
+    return LogisticRegression
 
 
 def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50):

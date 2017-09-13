@@ -16,7 +16,7 @@ from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, base_classifier, class_hierarchy, min_num_samples=10):
+    def __init__(self, base_classifier=None, class_hierarchy=None, min_num_samples=10):
         """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
@@ -233,7 +233,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             self._recursive_train_local_classifiers(X, y, child_node_id)
 
-    def _recrusive_predict(self, X, node_id):
+    def _recursive_predict(self, X, node_id):
         clf = self.graph_.node[node_id]["classifier"]
         path = [node_id]
         path_probability = 1.0
