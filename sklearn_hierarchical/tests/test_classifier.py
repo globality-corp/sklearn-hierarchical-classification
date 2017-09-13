@@ -9,9 +9,16 @@ from hamcrest import (
     is_,
 )
 from networkx import DiGraph
+from sklearn.utils.estimator_checks import check_estimator
 
 from sklearn_hierarchical.tests.fixtures import make_classifier_and_data
 from sklearn_hierarchical.tests.matchers import matches_graph
+
+
+def test_estimator_inteface():
+    clf, (X, y) = make_classifier_and_data(n_classes=4)
+
+    check_estimator(clf)
 
 
 def test_fit():

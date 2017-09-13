@@ -9,14 +9,15 @@ from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin
 from sklearn.utils.validation import check_consistent_length, check_is_fitted, check_X_y
 
 from sklearn_hierarchical.constants import ROOT
+from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import root_nodes
 
 
+@logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, class_hierarchy, base_classifier):
-        """
-        Hierarchical classification strategy
+    def __init__(self, base_classifier, class_hierarchy):
+        """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
         have inherent structure that can generally be represented as a tree or a directed acyclic graph (DAG),
@@ -57,8 +58,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             Flat array of class labels
 
         """
-        self.class_hierarchy = class_hierarchy
         self.base_classifier = base_classifier
+        self.class_hierarchy = class_hierarchy
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -107,6 +108,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         check_is_fitted(self, "graph_")
 
+    def predict_proba(self, X):
+        # TODO
+        pass
+
     @property
     def classes_(self):
         return list(
@@ -120,11 +125,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return len(self.classes_)
 
     def _recursive_build_features(self, X, y, node_id):
-        print("Building features for node: ", node_id)
+        self.logger.debug("Building features for node: %s", node_id)
         if self.graph_.out_degree(node_id) == 0:
             # Terminal node
             indices = np.flatnonzero(y == node_id)
-            print(indices)
             self.graph_.node[node_id]["X"] = self._build_features(
                 X=X,
                 indices=indices,
