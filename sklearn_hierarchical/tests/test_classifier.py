@@ -8,7 +8,7 @@ from hamcrest import (
     equal_to,
     is_,
 )
-from networkx import gn_graph
+from networkx import gn_graph, to_dict_of_lists
 from sklearn.datasets import make_classification
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
@@ -24,7 +24,7 @@ def make_class_hierarchy(n):
         Number of nodes in the returned graph
 
     """
-    return gn_graph(n=n)
+    return to_dict_of_lists(gn_graph(n=n))
 
 
 def make_base_classifier():
