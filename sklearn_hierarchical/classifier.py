@@ -118,6 +118,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         check_is_fitted(self, "graph_")
 
+        for node_id in root_nodes(self.graph_):
+            return self._recursive_predict(X, node_id=node_id)
+
     def predict_proba(self, X):
         """
         Return probability estimates for the test vector X.
@@ -221,11 +224,28 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             if out_degree < 2:
                 # If node has less than 2 children, no point training a local classifier
-                print("*** Not enough children to train classifier for node {}, skipping ({} < {})".format(
+                self.logger.warning(
+                    "*** Not enough children to train classifier for node %s, skipping (%s < 2)",
                     child_node_id,
                     self.graph_.out_degree(child_node_id),
-                    2,
-                ))
+                )
                 continue
 
             self._recursive_train_local_classifiers(X, y, child_node_id)
+
+    def _recrusive_predict(self, X, node_id):
+        clf = self.graph_.node[node_id]["classifier"]
+        path = [node_id]
+        path_probability = 1.0
+
+        while clf:
+            probs = clf.predict_proba(X)[0]
+            argmax = np.argmax(probs)
+            prediction = clf.classes_[argmax]
+            score = probs[argmax]
+
+            path_probability *= score
+            path.append(prediction)
+            clf = self.graph_.node[prediction].get("classifier", None)
+
+        return path
