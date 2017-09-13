@@ -53,22 +53,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.class_hierarchy = class_hierarchy
         self.base_classifier = base_classifier
 
-        def fit(self, X, y=None):
-            """Fit underlying classifiers.
+    def fit(self, X, y=None):
+        """Fit underlying classifiers.
 
-            Parameters
-            ----------
-            X : (sparse) array-like, shape = [n_samples, n_features]
-                Data.
-            y : (sparse) array-like, shape = [n_samples, ], [n_samples, n_classes]
-                Multi-class targets. An indicator matrix turns on multilabel
-                classification.
+        Parameters
+        ----------
+        X : (sparse) array-like, shape = [n_samples, n_features]
+            Data.
+        y : (sparse) array-like, shape = [n_samples, ], [n_samples, n_classes]
+            Multi-class targets. An indicator matrix turns on multilabel
+            classification.
 
-            Returns
-            -------
-            self
-            """
-            self.classes_ = list(self.class_hierarchy.nodes)
+        Returns
+        -------
+        self
+        """
 
     def predict(self, X):
         """Predict multi-class targets using underlying estimators.
@@ -84,6 +83,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             Predicted multi-class targets.
 
         """
+
+    @property
+    def classes_(self):
+        return list(self.class_hierarchy.nodes())
 
     @property
     def n_classes_(self):

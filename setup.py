@@ -15,9 +15,10 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
-        "networkx",
-        "scikit-learn",
-        "unidecode>=0.4.21",
+        "networkx>=1.11",
+        "numpy>=1.13.1",
+        "scikit-learn>=0.19.0",
+        "scipy>=0.19.1",
         "six>=1.10.0",
     ],
     setup_requires=[
