@@ -10,13 +10,13 @@ from sklearn.utils.validation import check_consistent_length, check_is_fitted, c
 
 from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
-from sklearn_hierarchical.graph import root_nodes
+from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 
 
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, base_classifier, class_hierarchy):
+    def __init__(self, base_classifier, class_hierarchy, min_num_samples=10):
         """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
@@ -46,11 +46,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         Parameters
         ----------
+        base_classifier : classifier object
+            A classifier object implementing 'fit' and 'predict' to be used as the base classifier.
+
         class_hierarchy: networkx.DiGraph object
             A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
 
-        base_classifier : classifier object
-            A classifier object implementing 'fit' and 'predict' to be used as the base classifier.
+        min_num_samples : int
+            Minimum number of training samples required to train a local classifier on a node (class)
 
         Attributes
         ----------
@@ -60,6 +63,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         self.base_classifier = base_classifier
         self.class_hierarchy = class_hierarchy
+        self.min_num_samples = min_num_samples
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -87,10 +91,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         # Initialize NetworkX Graph from input class hierarchy
         self.graph_ = nx.DiGraph(self.class_hierarchy)
 
-        # Recursively build training feature set for each node in graph
-        nodeset = root_nodes(self.graph_)
-        for node_id in nodeset:
+        # Recursively build training feature sets for each node in graph
+        # based on the passed in "global" feature set
+        for node_id in root_nodes(self.graph_):
             self._recursive_build_features(X, y, node_id=node_id)
+
+        # Recursively train base classifiers
+        for node_id in root_nodes(self.graph_):
+            self._recursive_train_local_classifiers(X, y, node_id=node_id)
+
+        return self
 
     def predict(self, X):
         """Predict multi-class targets using underlying estimators.
@@ -109,8 +119,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         check_is_fitted(self, "graph_")
 
     def predict_proba(self, X):
+        """
+        Return probability estimates for the test vector X.
+
+        Parameters
+        ----------
+        X : array-like, shape = [n_samples, n_features]
+
+        Returns
+        -------
+        C : array-like, shape = [n_samples, n_classes]
+            Returns the probability of the samples for each class in
+            the model. The columns correspond to the classes in sorted
+            order, as they appear in the attribute `classes_`.
+        """
         # TODO
-        pass
 
     @property
     def classes_(self):
@@ -149,3 +172,60 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         X_ = lil_matrix(X.shape, dtype=X.dtype)
         X_[indices, :] = X[indices, :]
         return X_.tocsr()
+
+    def _train_local_classifier(self, X, y, node_id):
+        X = self.graph_.node[node_id]["X"]
+        nnz_rows = np.where(X.todense().any(axis=1))[0]
+
+        if len(nnz_rows) < self.min_num_samples:
+            self.logger.warning(
+                "*** Not enough samples to train classifier for node %s, skipping (%s < %s)",
+                node_id,
+                len(nnz_rows),
+                self.min_num_samples,
+            )
+            return
+
+        y_train = rollup_nodes(
+            graph=self.graph_,
+            root=node_id,
+            targets=y,
+        )
+
+        if len(set(y_train)) < 2:
+            self.logger.warning(
+                "*** Not enough targets to train classifier for node %s, skipping (%s < 2)",
+                node_id,
+                len(set(y_train)),
+            )
+            return
+
+        clf = self.base_classifier()
+        clf.fit(X=X, y=y)
+
+        self.graph_.node[node_id]["classifier"] = clf
+
+    def _recursive_train_local_classifiers(self, X, y, node_id):
+
+        if self.graph_.node[node_id].get("classifier", None):
+            # Already encountered this node, skip
+            return
+
+        self._train_local_classifier(X, y, node_id)
+
+        for child_node_id in self.graph_.successors(node_id):
+            out_degree = self.graph_.out_degree(child_node_id)
+            if not out_degree:
+                # Terminal node, skip
+                continue
+
+            if out_degree < 2:
+                # If node has less than 2 children, no point training a local classifier
+                print("*** Not enough children to train classifier for node {}, skipping ({} < {})".format(
+                    child_node_id,
+                    self.graph_.out_degree(child_node_id),
+                    2,
+                ))
+                continue
+
+            self._recursive_train_local_classifiers(X, y, child_node_id)
