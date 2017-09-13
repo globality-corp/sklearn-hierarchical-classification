@@ -2,7 +2,13 @@
 Hierarchical classifier interface.
 
 """
+import networkx as nx
+import numpy as np
+from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin
+from sklearn.utils.validation import check_consistent_length, check_is_fitted, check_X_y
+
+from sklearn_hierarchical.graph import root_nodes
 
 
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
@@ -53,21 +59,44 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.class_hierarchy = class_hierarchy
         self.base_classifier = base_classifier
 
-    def fit(self, X, y=None):
+    @property
+    def classes_(self):
+        return list(self.class_hierarchy.nodes())
+
+    @property
+    def n_classes_(self):
+        return len(self.classes_)
+
+    def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
 
         Parameters
         ----------
         X : (sparse) array-like, shape = [n_samples, n_features]
             Data.
+
         y : (sparse) array-like, shape = [n_samples, ], [n_samples, n_classes]
             Multi-class targets. An indicator matrix turns on multilabel
             classification.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=None)
+            Weights applied to individual samples (1. for unweighted).
 
         Returns
         -------
         self
         """
+        check_X_y(X, y)
+        if sample_weight is not None:
+            check_consistent_length(y, sample_weight)
+
+        # Initialize NetworkX Graph from input class hierarchy
+        self.graph_ = nx.DiGraph(self.class_hierarchy)
+
+        # Recursively build training feature set for each node in graph
+        nodeset = root_nodes(self.graph_)
+        for node_id in nodeset:
+            self._recursive_build_features(X, y, node_id=node_id)
 
     def predict(self, X):
         """Predict multi-class targets using underlying estimators.
@@ -83,11 +112,30 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             Predicted multi-class targets.
 
         """
+        check_is_fitted(self, "graph_")
 
-    @property
-    def classes_(self):
-        return list(self.class_hierarchy.nodes())
+    def _recursive_build_features(self, X, y, node_id):
+        print("Building features for node: ", node_id)
+        if self.graph_.out_degree(node_id) == 0:
+            # Terminal node
+            indices = np.argwhere(y == node_id)
+            self.graph_.node[node_id]["X"] = self._build_features(
+                X=X,
+                indices=indices,
+            )
+            return self.graph_.node[node_id]["X"]
 
-    @property
-    def n_classes_(self):
-        return len(self.classes_)
+        self.graph_.node[node_id]["X"] = csr_matrix(
+            X.shape,
+            dtype=X.dtype,
+        )
+        for child_node_id in self.graph_.successors(node_id):
+            self.graph_.node[node_id]["X_train_counts"] += \
+                self._recursive_build_features(X, child_node_id)
+
+        return self.graph_.node[node_id]["X_train_counts"]
+
+    def _build_features(self, X, indices):
+        X_ = lil_matrix(X.shape, dtype=X.dtype)
+        X_[indices, :] = X[indices, :]
+        return X_.tocsr()

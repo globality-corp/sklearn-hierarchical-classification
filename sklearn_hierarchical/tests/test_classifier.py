@@ -40,3 +40,5 @@ def test_networkx_class_hierarchy():
     )
 
     assert_that(clf.n_classes_, is_(equal_to(10)))
+    assert_that(clf.classes_, is_(equal_to(list(class_hierarchy.nodes()))))
+    assert_that(clf.graph_, is_(equal_to(class_hierarchy)))
