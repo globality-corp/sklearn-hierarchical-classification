@@ -8,35 +8,32 @@ from hamcrest import (
     equal_to,
     is_,
 )
-from networkx import gn_graph
+from networkx import DiGraph
+from sklearn.utils.estimator_checks import check_estimator
 
-from sklearn_hierarchical.classifier import HierarchicalClassifier
-
-
-def make_class_hierarchy(n):
-    """Create a mock class hierarchy for testing purposes.
-
-    Parameters
-    ----------
-    n : int
-        Number of nodes in the returned graph
-
-    """
-    return gn_graph(n=n)
+from sklearn_hierarchical.tests.fixtures import make_classifier_and_data
+from sklearn_hierarchical.tests.matchers import matches_graph
 
 
-def make_base_classifier():
-    return None
+def test_estimator_inteface():
+    clf, _ = make_classifier_and_data(n_classes=4)
+
+    class _Estimator(clf.__class__):
+        def __init__(self):
+            super().__init__(
+                base_classifier=clf.base_classifier,
+                class_hierarchy=clf.class_hierarchy,
+            )
+
+    check_estimator(_Estimator)
 
 
-def test_networkx_class_hierarchy():
-    """Test that a class hierarchy represented as a networkx.DiGraph is parsed correctly."""
-    class_hierarchy = make_class_hierarchy(n=10)
-    base_classifier = make_base_classifier()
+def test_fit():
+    n_classes = 10
+    clf, (X, y) = make_classifier_and_data(n_classes=n_classes)
 
-    clf = HierarchicalClassifier(
-        class_hierarchy=class_hierarchy,
-        base_classifier=base_classifier,
-    )
+    clf.fit(X, y)
 
-    assert_that(clf.n_classes_, is_(equal_to(10)))
+    assert_that(clf.graph_, matches_graph(DiGraph(clf.class_hierarchy)))
+    assert_that(clf.classes_, is_(equal_to(list(range(n_classes)))))
+    assert_that(clf.n_classes_, is_(equal_to(n_classes)))
