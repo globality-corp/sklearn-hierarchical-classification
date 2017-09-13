@@ -118,7 +118,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         print("Building features for node: ", node_id)
         if self.graph_.out_degree(node_id) == 0:
             # Terminal node
-            indices = np.argwhere(y == node_id)
+            indices = np.flatnonzero(y == node_id)
+            print(indices)
             self.graph_.node[node_id]["X"] = self._build_features(
                 X=X,
                 indices=indices,
@@ -130,10 +131,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             dtype=X.dtype,
         )
         for child_node_id in self.graph_.successors(node_id):
-            self.graph_.node[node_id]["X_train_counts"] += \
-                self._recursive_build_features(X, child_node_id)
+            self.graph_.node[node_id]["X"] += \
+                self._recursive_build_features(X, y, node_id=child_node_id)
 
-        return self.graph_.node[node_id]["X_train_counts"]
+        return self.graph_.node[node_id]["X"]
 
     def _build_features(self, X, indices):
         X_ = lil_matrix(X.shape, dtype=X.dtype)
