@@ -6,7 +6,6 @@ from itertools import product
 
 from networkx import DiGraph, gn_graph, to_dict_of_lists
 from sklearn.datasets import make_classification
-from sklearn.linear_model import LogisticRegression
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
 from sklearn_hierarchical.constants import ROOT
@@ -44,7 +43,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
     return G
 
 
-def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50, base_classifier_cls=LogisticRegression):
+def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50, base_estimator=None):
     X, y = make_classification(
         n_samples=n_samples,
         n_features=n_features,
@@ -58,7 +57,7 @@ def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50, base_cl
 
     clf = HierarchicalClassifier(
         class_hierarchy=to_dict_of_lists(class_hierarchy),
-        base_classifier=base_classifier_cls(),
+        base_estimator=base_estimator,
     )
 
     return clf, (X, y)

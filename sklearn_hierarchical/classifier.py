@@ -2,14 +2,18 @@
 Hierarchical classifier interface.
 
 """
+from collections import defaultdict
+
 import networkx as nx
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 
+from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 
@@ -17,7 +21,7 @@ from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, base_classifier, class_hierarchy, min_num_samples=1):
+    def __init__(self, base_estimator=None, class_hierarchy=None, min_num_samples=1):
         """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
@@ -46,11 +50,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         Parameters
         ----------
-        base_classifier : classifier object
+        base_estimator: classifier object
             A classifier object implementing 'fit' and 'predict' to be used as the base classifier.
 
         class_hierarchy: networkx.DiGraph object
             A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
+            If not provided, this will be initialized during the `fit` operation into a trivial graph structure linking
+            all classes given in `y` to an artificial "ROOT" node.
 
         min_num_samples : int
             Minimum number of training samples required to train a local classifier on a node (class)
@@ -61,7 +67,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             Flat array of class labels
 
         """
-        self.base_classifier = base_classifier
+        self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.min_num_samples = min_num_samples
 
@@ -90,8 +96,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             check_consistent_length(y, sample_weight)
 
         # Initialize NetworkX Graph from input class hierarchy
-        self.graph_ = nx.DiGraph(self.class_hierarchy)
+        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(set(y))
+        self.graph_ = nx.DiGraph(self.class_hierarchy_)
         self.classes_ = list(set(y))
+
+        # Initialize the base estimator
+        self.base_estimator_ = self.base_estimator or make_base_estimator()
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
@@ -228,7 +238,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             clf = DummyClassifier(strategy="constant", constant=y_train[0])
         else:
-            clf = clone(self.base_classifier)
+            clf = clone(self.base_estimator_)
         clf.fit(X=X, y=y)
         self.graph_.node[node_id]["classifier"] = clf
 
@@ -281,3 +291,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = self.graph_.node[prediction].get("classifier", None)
 
         return path, class_probabilities
+
+
+def make_flat_hierarchy(targets):
+    """
+    Create a trivial "flat" hiearchy, linking all given targets to an artificial ROOT node.
+
+    """
+    adjacency = defaultdict(list)
+    for target in targets:
+        adjacency[ROOT].append(target)
+    return adjacency
+
+
+def make_base_estimator():
+    return LogisticRegression()
