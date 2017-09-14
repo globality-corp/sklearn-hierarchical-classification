@@ -8,8 +8,8 @@ from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
+from sklearn.utils.multiclass import check_classification_targets
 
-from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 
@@ -85,12 +85,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
         """
         X, y = check_X_y(X, y)
+        check_classification_targets(y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
 
         # Initialize NetworkX Graph from input class hierarchy
         self.graph_ = nx.DiGraph(self.class_hierarchy)
-
         self.classes_ = list(set(y))
 
         # Recursively build training feature sets for each node in graph
@@ -261,7 +261,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         clf = self.graph_.node[node_id]["classifier"]
         path = [node_id]
         path_probability = 1.0
-        class_probabilities = np.zeros_like(self.classes_, dtype=np.float32)
+        class_probabilities = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
             probs = clf.predict_proba(X)[0]
@@ -269,10 +269,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             prediction = clf.classes_[argmax]
             score = probs[argmax]
 
+            # Update current path
             path_probability *= score
             path.append(prediction)
-            class_idx = self.classes_.index(prediction)
-            class_probabilities[class_idx] = score
+
+            # Report probabilities in terms of complete class hierarchy
+            for local_class_idx, class_ in enumerate(clf.classes_):
+                class_idx = self.classes_.index(class_)
+                class_probabilities[class_idx] = probs[local_class_idx]
 
             clf = self.graph_.node[prediction].get("classifier", None)
 
