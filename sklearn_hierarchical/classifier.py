@@ -6,7 +6,7 @@ import networkx as nx
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin
-from sklearn.utils.validation import check_consistent_length, check_is_fitted, check_X_y
+from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 
 from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
@@ -41,8 +41,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         The nomenclature used here is based on the following papers:
 
-            "A survey of hierarchical classification across different application domains":
-            https://link.springer.com/article/10.1007/s10618-010-0175-9
+            "A survey of hierarchical classification across different application domains" - CN Silla et al. 2011
 
         Parameters
         ----------
@@ -117,9 +116,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
+        X = check_array(X, accept_sparse=True)
 
+        y_pred = []
         for node_id in root_nodes(self.graph_):
-            return self._recursive_predict(X, node_id=node_id)
+            y_pred.append(
+                self._recursive_predict(X, node_id=node_id)
+            )
+
+        return np.array(y_pred)
 
     def predict_proba(self, X):
         """
