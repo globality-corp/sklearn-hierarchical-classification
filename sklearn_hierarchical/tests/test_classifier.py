@@ -18,14 +18,7 @@ from sklearn_hierarchical.tests.matchers import matches_graph
 def test_estimator_inteface():
     clf, _ = make_classifier_and_data(n_classes=4)
 
-    class _Estimator(clf.__class__):
-        def __init__(self):
-            super().__init__(
-                base_classifier=clf.base_classifier,
-                class_hierarchy=clf.class_hierarchy,
-            )
-
-    check_estimator(_Estimator)
+    check_estimator(clf)
 
 
 def test_fit():

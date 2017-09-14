@@ -44,15 +44,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
     return G
 
 
-def make_base_classifier():
-    """Create a base classifier for use as part of the hierarchical classifier.
-
-    """
-    # Returns a multinomial naive bayes classifier by default
-    return LogisticRegression
-
-
-def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50):
+def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50, base_classifier_cls=LogisticRegression):
     X, y = make_classification(
         n_samples=n_samples,
         n_features=n_features,
@@ -63,10 +55,10 @@ def make_classifier_and_data(n_classes=10, n_samples=100, n_features=50):
         n=n_classes+1,
         n_intermediate=0,
     )
-    base_classifier = make_base_classifier()
+
     clf = HierarchicalClassifier(
         class_hierarchy=to_dict_of_lists(class_hierarchy),
-        base_classifier=base_classifier,
+        base_classifier=base_classifier_cls(),
     )
 
     return clf, (X, y)

@@ -5,7 +5,7 @@ Hierarchical classifier interface.
 import networkx as nx
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
-from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin
+from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 
 from sklearn_hierarchical.constants import ROOT
@@ -16,7 +16,7 @@ from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, base_classifier=None, class_hierarchy=None, min_num_samples=10):
+    def __init__(self, base_classifier, class_hierarchy, min_num_samples=1):
         """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
@@ -84,6 +84,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
         """
         check_X_y(X, y)
+        X = check_array(X, accept_sparse=True)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
 
@@ -118,13 +119,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         check_is_fitted(self, "graph_")
         X = check_array(X, accept_sparse=True)
 
-        y_pred = []
-        for node_id in root_nodes(self.graph_):
-            y_pred.append(
-                self._recursive_predict(X, node_id=node_id)
-            )
+        def classify(x):
+            y_pred = []
+            for node_id in root_nodes(self.graph_):
+                path, scores = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
+                y_pred.append(path[-1])
+            # TODO
+            return y_pred[0]
 
-        return np.array(y_pred)
+        y_pred = np.apply_along_axis(
+            classify,
+            axis=1,
+            arr=X,
+        )
+        self.logger.info("y_pred: %s", y_pred)
+        return y_pred
 
     def predict_proba(self, X):
         """
@@ -141,7 +150,23 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             the model. The columns correspond to the classes in sorted
             order, as they appear in the attribute `classes_`.
         """
-        # TODO
+        check_is_fitted(self, "graph_")
+        X = check_array(X, accept_sparse=True)
+
+        def classify(x):
+            y_pred = []
+            for node_id in root_nodes(self.graph_):
+                path, class_probabilities = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
+                y_pred.append((path[-1], class_probabilities))
+            # TODO support multi-label
+            return y_pred[0]
+
+        y_pred = np.apply_along_axis(
+            classify,
+            axis=1,
+            arr=X,
+        )
+        return y_pred
 
     @property
     def classes_(self):
@@ -208,7 +233,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             return
 
-        clf = self.base_classifier()
+        clf = clone(self.base_classifier)
         clf.fit(X=X, y=y)
 
         self.graph_.node[node_id]["classifier"] = clf
@@ -242,6 +267,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         clf = self.graph_.node[node_id]["classifier"]
         path = [node_id]
         path_probability = 1.0
+        class_probabilities = np.zeros_like(self.classes_, dtype=np.float32)
 
         while clf:
             probs = clf.predict_proba(X)[0]
@@ -251,6 +277,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             path_probability *= score
             path.append(prediction)
+            class_idx = self.classes_.index(prediction)
+            class_probabilities[class_idx] = score
+
             clf = self.graph_.node[prediction].get("classifier", None)
 
-        return path
+        return path, class_probabilities
