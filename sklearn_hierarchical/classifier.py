@@ -98,9 +98,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             check_consistent_length(y, sample_weight)
 
         # Initialize NetworkX Graph from input class hierarchy
-        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(set(y))
+        self.classes_ = list(np.unique(y))
+        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(self.classes_)
         self.graph_ = nx.DiGraph(self.class_hierarchy_)
-        self.classes_ = list(set(y))
 
         # Initialize the base estimator
         self.base_estimator_ = self.base_estimator or make_base_estimator()
