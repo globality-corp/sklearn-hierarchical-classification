@@ -2,7 +2,6 @@
 Unit-tests for the classifier interface.
 
 """
-
 from hamcrest import (
     assert_that,
     equal_to,

@@ -6,6 +6,7 @@ import networkx as nx
 import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
+from sklearn.dummy import DummyClassifier
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 
 from sklearn_hierarchical.constants import ROOT
@@ -83,13 +84,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         -------
         self
         """
-        check_X_y(X, y)
-        X = check_array(X, accept_sparse=True)
+        X, y = check_X_y(X, y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
 
         # Initialize NetworkX Graph from input class hierarchy
         self.graph_ = nx.DiGraph(self.class_hierarchy)
+
+        self.classes_ = list(set(y))
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
@@ -132,7 +134,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             axis=1,
             arr=X,
         )
-        self.logger.info("y_pred: %s", y_pred)
+
         return y_pred
 
     def predict_proba(self, X):
@@ -153,28 +155,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         check_is_fitted(self, "graph_")
         X = check_array(X, accept_sparse=True)
 
-        def classify(x):
+        def _classify(x):
             y_pred = []
             for node_id in root_nodes(self.graph_):
                 path, class_probabilities = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
                 y_pred.append((path[-1], class_probabilities))
             # TODO support multi-label
-            return y_pred[0]
+            return y_pred[0][1]
 
         y_pred = np.apply_along_axis(
-            classify,
+            _classify,
             axis=1,
             arr=X,
         )
         return y_pred
-
-    @property
-    def classes_(self):
-        return list(
-            node
-            for node in self.graph_.nodes()
-            if node != ROOT
-        )
 
     @property
     def n_classes_(self):
@@ -184,6 +178,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.logger.debug("Building features for node: %s", node_id)
         if self.graph_.out_degree(node_id) == 0:
             # Terminal node
+            self.logger.debug("_recursive_build_features() - node_id: %s, set(y): %s", node_id, set(y))
             indices = np.flatnonzero(y == node_id)
             self.graph_.node[node_id]["X"] = self._build_features(
                 X=X,
@@ -227,15 +222,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if len(set(y_train)) < 2:
             self.logger.warning(
-                "*** Not enough targets to train classifier for node %s, skipping (%s < 2)",
+                "*** Not enough targets to train classifier for node %s, Will trivially predict %s",
                 node_id,
-                len(set(y_train)),
+                y_train[0],
             )
-            return
-
-        clf = clone(self.base_classifier)
+            clf = DummyClassifier(strategy="constant", constant=y_train[0])
+        else:
+            clf = clone(self.base_classifier)
         clf.fit(X=X, y=y)
-
         self.graph_.node[node_id]["classifier"] = clf
 
     def _recursive_train_local_classifiers(self, X, y, node_id):
