@@ -5,7 +5,7 @@ Unit-test fixtures and factory methods.
 from itertools import product
 
 from networkx import DiGraph, gn_graph, to_dict_of_lists
-from sklearn.datasets import load_wine, make_classification
+from sklearn.datasets import make_blobs
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
 from sklearn_hierarchical.constants import ROOT
@@ -49,24 +49,18 @@ def make_classifier_and_data(
     n_features=10,
     base_estimator=None,
     class_hierarchy=None,
-    use_wine_dataset=False,
 ):
-    if use_wine_dataset:
-        # Use the wine dataset, a very easy 3-way classification task
-        # See http://scikit-learn.org/stable/modules/generated/sklearn.datasets.load_wine.html#sklearn.datasets.load_wine  # noqa:E501
-        X, y = load_wine(return_X_y=True)
-    else:
-        X, y = make_classification(
-            n_samples=n_samples,
-            n_features=n_features,
-            n_informative=n_classes,
-            n_classes=n_classes,
-        )
+    X, y = make_blobs(
+        n_samples=n_samples,
+        n_features=n_features,
+        centers=n_classes,
+    )
 
     class_hierarchy = class_hierarchy or make_class_hierarchy(
         n=n_classes+1,
         n_intermediate=0,
     )
+    print(class_hierarchy)
 
     clf = HierarchicalClassifier(
         class_hierarchy=class_hierarchy,

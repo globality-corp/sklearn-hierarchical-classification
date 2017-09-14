@@ -40,24 +40,6 @@ def test_fitted_properties():
 
 
 def test_trivial_hierarchy_classification():
-    """Test that a trivial/degenerate hierarchy behaves as expected."""
-    clf, (X, y) = make_classifier_and_data(class_hierarchy=False, use_wine_dataset=True)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.30,
-        random_state=RANDOM_STATE,
-    )
-
-    clf.fit(X_train, y_train)
-    y_pred = clf.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
-
-    assert_that(accuracy, is_(close_to(1., delta=0.001)))
-
-
-def test_nontrivial_hierarchy_classification():
     """Test that a nontrivial hierarchy behaves as expected."""
     clf, (X, y) = make_classifier_and_data(n_classes=5)
 
