@@ -51,7 +51,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         Parameters
         ----------
         base_estimator: classifier object
-            A classifier object implementing 'fit' and 'predict' to be used as the base classifier.
+            A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
+            base classifier. If not provided, a base estimator will be chosen by the framework using various
+            meta-learning heuristics (WIP).
 
         class_hierarchy: networkx.DiGraph object
             A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
