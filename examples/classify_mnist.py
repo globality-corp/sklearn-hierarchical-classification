@@ -32,9 +32,6 @@ def classify_mnist():
          / \      / \ \
         1   7    3   8  9
 
-    We then generate a synthetic data set which assigns each leaf node
-    "half" of a isotropic gaussian which it shares with its sibling.
-
     """
     class_hierarchy = {
         ROOT: ["A", "B"],
