@@ -118,12 +118,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
-        for node_id in self._progress(root_nodes(self.graph_), desc="Building features hierarchy"):
-            self._recursive_build_features(X, y, node_id=node_id)
+        with self._progress(total=self.n_classes_, desc="Building features") as progress:
+            for node_id in root_nodes(self.graph_):
+                self._recursive_build_features(X, y, node_id=node_id, progress=progress)
 
         # Recursively train base classifiers
-        for node_id in root_nodes(self.graph_):
-            self._recursive_train_local_classifiers(X, y, node_id=node_id)
+        with self._progress(total=self.n_classes_, desc="Training base classifiers") as progress:
+            for node_id in root_nodes(self.graph_):
+                self._recursive_train_local_classifiers(X, y, node_id=node_id, progress=progress)
 
         return self
 
@@ -197,8 +199,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     def n_classes_(self):
         return len(self.classes_)
 
-    def _recursive_build_features(self, X, y, node_id):
+    def _recursive_build_features(self, X, y, node_id, progress):
         self.logger.debug("Building features for node: %s", node_id)
+        progress.update(1)
+
         if self.graph_.out_degree(node_id) == 0:
             # Terminal node
             self.logger.debug("_recursive_build_features() - node_id: %s, set(y): %s", node_id, set(y))
@@ -215,7 +219,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
         for child_node_id in self.graph_.successors(node_id):
             self.graph_.node[node_id]["X"] += \
-                self._recursive_build_features(X, y, node_id=child_node_id)
+                self._recursive_build_features(
+                    X=X,
+                    y=y,
+                    node_id=child_node_id,
+                    progress=progress,
+                )
 
         return self.graph_.node[node_id]["X"]
 
@@ -264,7 +273,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         clf.fit(X=X, y=y)
         self.graph_.node[node_id]["classifier"] = clf
 
-    def _recursive_train_local_classifiers(self, X, y, node_id):
+    def _recursive_train_local_classifiers(self, X, y, node_id, progress):
+        progress.update(1)
 
         if self.graph_.node[node_id].get("classifier", None):
             # Already encountered this node, skip
@@ -276,6 +286,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             out_degree = self.graph_.out_degree(child_node_id)
             if not out_degree:
                 # Terminal node, skip
+                progress.update(1)
                 continue
 
             if out_degree < 2:
@@ -285,9 +296,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     child_node_id,
                     self.graph_.out_degree(child_node_id),
                 )
+                # For tracking progress, count this node as well as all of its descendants
+                progress.update(1 + len(list(nx.dfs_edges(self.graph_, child_node_id))))
                 continue
 
-            self._recursive_train_local_classifiers(X, y, child_node_id)
+            self._recursive_train_local_classifiers(
+                X=X,
+                y=y,
+                node_id=child_node_id,
+                progress=progress,
+            )
 
     def _recursive_predict(self, X, node_id):
         clf = self.graph_.node[node_id]["classifier"]
@@ -314,11 +332,26 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         return path, class_probabilities
 
-    def _progress(self, iterable, **kwargs):
+    def _progress(self, total, **kwargs):
         if self.interactive:
-            yield from tqdm_notebook(iterable, **kwargs)
+            return tqdm_notebook(total=total, **kwargs)
         else:
-            yield from iterable
+            return DummyProgress()
+
+
+class DummyProgress(object):
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def update(self, value):
+        pass
+
+    def close(self):
+        pass
 
 
 def make_flat_hierarchy(targets):
