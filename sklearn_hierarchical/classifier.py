@@ -178,7 +178,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             order, as they appear in the attribute `classes_`.
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse=True)
+        X = check_array(X, accept_sparse=False)
 
         def _classify(x):
             y_pred = []
