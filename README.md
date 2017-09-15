@@ -15,6 +15,23 @@ To install, simply install this package via pip into your desired virtualenv, e.
 See [examples/](./examples/) for usage examples.
 
 
+### Jupyter notebooks
+
+Support for interactive development is built in to the `HierarchicalClassifier` class. This will enable progress bars (using the excellent [tqdm]() library) in various places during training and may otherwise enable more visibility into the classifier which is useful during interactive use. To enable this make sure widget extensions are enabled by running:
+
+    jupyter nbextension enable --py --sys-prefix widgetsnbextension
+
+You can then instantiate a classifier with the `interactive=True` flag set:
+
+```python
+    clf = HierarchicalClassifier(
+        base_estimator=svm.LinearSVC(),
+        class_hierarchy=class_hierarchy,
+        interactive=True,
+    )
+```
+
+
 ## Further Reading
 
 this module is heavily influenced by the following previous work and papers:
