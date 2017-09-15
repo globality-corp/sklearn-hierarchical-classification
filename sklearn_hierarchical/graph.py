@@ -25,13 +25,15 @@ def rollup_nodes(graph, root, targets):
         #    resultset.append(path[1])
         resultset.append(next(all_paths)[1])
 
+    assert len(resultset) == len(targets)
+
     return resultset
 
 
 def root_nodes(graph):
     return (
         node
-        for node, in_degree in graph.in_degree().items()
+        for node, in_degree in graph.in_degree()
         if in_degree == 0
     )
 
@@ -39,6 +41,6 @@ def root_nodes(graph):
 def terminal_nodes(graph):
     return (
         node
-        for node, out_degree in graph.out_degree().items()
+        for node, out_degree in graph.out_degree()
         if out_degree == 0
     )

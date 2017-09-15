@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Example of using the hierarchical classifier to classify (a subset of) the MNIST digits data set.
+Example of using the hierarchical classifier to classify (a subset of) the digits data set.
 
 Demonstrated some of the capabilities, e.g using a Pipeline as the base estimator,
 defining a non-trivial class hierarchy, etc.
@@ -21,7 +21,7 @@ from sklearn_hierarchical.tests.fixtures import make_digits_dataset
 RANDOM_STATE = 42
 
 
-def classify_mnist():
+def classify_digits():
     """Test that a nontrivial hierarchy leaf classification behaves as expected.
 
     We build the following class hierarchy along with data from the handwritten digits dataset:
@@ -66,4 +66,4 @@ def classify_mnist():
 
 
 if __name__ == "__main__":
-    classify_mnist()
+    classify_digits()

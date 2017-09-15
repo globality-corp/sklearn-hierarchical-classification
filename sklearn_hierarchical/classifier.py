@@ -92,15 +92,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         -------
         self
         """
-        X, y = check_X_y(X, y)
+        X, y = check_X_y(X, y, accept_sparse=False)
         check_classification_targets(y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
 
         # Initialize NetworkX Graph from input class hierarchy
-        self.classes_ = list(np.unique(y))
-        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(self.classes_)
+        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)))
         self.graph_ = nx.DiGraph(self.class_hierarchy_)
+        self.classes_ = list(
+            node
+            for node in self.graph_.nodes()
+            if node != ROOT
+        )
 
         # Initialize the base estimator
         self.base_estimator_ = self.base_estimator or make_base_estimator()
@@ -131,7 +135,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse=True)
+        X = check_array(X, accept_sparse=False)
 
         def classify(x):
             y_pred = []
@@ -220,9 +224,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             X.shape,
             len(np.unique(y)),
         )
+
         X = self.graph_.node[node_id]["X"]
         nnz_rows = np.where(X.todense().any(axis=1))[0]
-        targets = [y[idx] for idx in nnz_rows]
+        X = X[nnz_rows, :]
 
         if len(nnz_rows) < self.min_num_samples:
             self.logger.warning(
@@ -233,19 +238,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             return
 
-        y_train = rollup_nodes(
+        y = rollup_nodes(
             graph=self.graph_,
             root=node_id,
-            targets=targets,
+            targets=[y[idx] for idx in nnz_rows],
         )
 
-        if len(set(y_train)) < 2:
+        if len(set(y)) < 2:
             self.logger.warning(
                 "*** Not enough targets to train classifier for node %s, Will trivially predict %s",
                 node_id,
-                y_train[0],
+                y[0],
             )
-            clf = DummyClassifier(strategy="constant", constant=y_train[0])
+            clf = DummyClassifier(strategy="constant", constant=y[0])
         else:
             clf = clone(self.base_estimator_)
 
