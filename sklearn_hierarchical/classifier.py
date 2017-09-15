@@ -12,6 +12,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
+from tqdm import tqdm_notebook
 
 from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
@@ -21,7 +22,7 @@ from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
 
-    def __init__(self, base_estimator=None, class_hierarchy=None, min_num_samples=1):
+    def __init__(self, base_estimator=None, class_hierarchy=None, min_num_samples=1, interactive=False):
         """Hierarchical classification strategy
 
         Hierarchical classification in general deals with the scenario where our target classes
@@ -63,6 +64,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         min_num_samples : int
             Minimum number of training samples required to train a local classifier on a node (class)
 
+        interactive : bool
+            If set to True, functionality which is useful for interactive usage (e.g in a Jupyter notebook) will be
+            enabled. Specifically, fitting the model will display progress bars (via tqdm) where appropriate, and more
+            verbose logging will be emitted.
+
         Attributes
         ----------
         classes_ : array, shape = [`n_classes`]
@@ -72,6 +78,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.min_num_samples = min_num_samples
+        self.interactive = interactive
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -102,7 +109,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.graph_ = nx.DiGraph(self.class_hierarchy_)
         self.classes_ = list(
             node
-            for node in self.graph_.nodes()
+            for node in list(self.graph_.nodes())
             if node != ROOT
         )
 
@@ -111,7 +118,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
-        for node_id in root_nodes(self.graph_):
+        for node_id in self._progress(root_nodes(self.graph_), desc="Building features hierarchy"):
             self._recursive_build_features(X, y, node_id=node_id)
 
         # Recursively train base classifiers
@@ -176,7 +183,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node_id in root_nodes(self.graph_):
                 path, class_probabilities = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
                 y_pred.append((path[-1], class_probabilities))
-            # TODO support multi-label
+            # TODO support multi-label / paths?
             return y_pred[0][1]
 
         y_pred = np.apply_along_axis(
@@ -306,6 +313,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = self.graph_.node[prediction].get("classifier", None)
 
         return path, class_probabilities
+
+    def _progress(self, iterable, **kwargs):
+        if self.interactive:
+            yield from tqdm_notebook(iterable, **kwargs)
+        else:
+            yield from iterable
 
 
 def make_flat_hierarchy(targets):

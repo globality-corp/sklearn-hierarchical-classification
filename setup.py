@@ -15,11 +15,12 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
-        "networkx>=2.0rc1",
+        "networkx<2.0",
         "numpy>=1.13.1",
         "scikit-learn>=0.19.0",
         "scipy>=0.19.1",
         "six>=1.10.0",
+        "tqdm>=4.15.0",
     ],
     setup_requires=[
         "nose>=1.3.7",

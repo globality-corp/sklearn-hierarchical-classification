@@ -33,7 +33,7 @@ def rollup_nodes(graph, root, targets):
 def root_nodes(graph):
     return (
         node
-        for node, in_degree in graph.in_degree()
+        for node, in_degree in graph.in_degree().items()
         if in_degree == 0
     )
 
