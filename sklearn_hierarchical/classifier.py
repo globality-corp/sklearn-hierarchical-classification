@@ -214,8 +214,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return X_.tocsr()
 
     def _train_local_classifier(self, X, y, node_id):
+        self.logger.debug(
+            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(unique(y)): %s",
+            node_id,
+            X.shape,
+            len(np.unique(y)),
+        )
         X = self.graph_.node[node_id]["X"]
         nnz_rows = np.where(X.todense().any(axis=1))[0]
+        targets = [y[idx] for idx in nnz_rows]
 
         if len(nnz_rows) < self.min_num_samples:
             self.logger.warning(
@@ -229,7 +236,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         y_train = rollup_nodes(
             graph=self.graph_,
             root=node_id,
-            targets=y,
+            targets=targets,
         )
 
         if len(set(y_train)) < 2:
@@ -241,6 +248,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = DummyClassifier(strategy="constant", constant=y_train[0])
         else:
             clf = clone(self.base_estimator_)
+
         clf.fit(X=X, y=y)
         self.graph_.node[node_id]["classifier"] = clf
 
