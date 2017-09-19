@@ -9,9 +9,23 @@ from networkx import all_pairs_shortest_path_length
 def fill_ancestors(y, graph, copy=True):
     """
     Compute the full ancestor set for y given as a matrix of 0-1.
-    Each row will be processed individually and filled in with 1s in indexes
-    corresponding to the integer id of the ancestor nodes of those already marked with 1,
-    based on the given class hierarchy graph.
+
+    Each row will be processed and filled in with 1s in indexes corresponding
+    to the (integer) id of the ancestor nodes of those already marked with 1
+    in that row, based on the given class hierarchy graph.
+
+    Parameters
+    ----------
+    y : array-like, shape = [n_samples, n_classes].
+        multi-class targets, corresponding to graph node integer ids.
+
+    graph : the class hierarchy graph, given as a `networkx.DiGraph` instance
+
+    Returns
+    -------
+    y_ : array-like, shape = [n_samples, n_classes].
+        multi-class targets, corresponding to graph node integer ids with
+        all ancestors of existing labels in matrix filled in, per row.
 
     """
     y_ = y.copy() if copy else y
@@ -39,14 +53,19 @@ def h_precision_score(y_true, y_pred, class_hierarchy):
 
     Parameters
     ----------
-
-    y_true : (sparse) array-like, shape = [n_samples, n_classes].
+    y_true : array-like, shape = [n_samples, n_classes].
         Ground truth multi-class targets.
 
-    y_pred : (sparse) array-like, shape = [n_samples, n_classes].
+    y_pred : array-like, shape = [n_samples, n_classes].
         Predicted multi-class targets.
 
     class_hierarchy : the class hierarchy graph, given as a `networkx.DiGraph` instance
+        Node ids must be integer and correspond to the indices into the y_true / y_pred matrices.
+
+    Returns
+    -------
+    hP : float
+        The computed hierarchical precision score.
 
     """
     y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
@@ -75,14 +94,19 @@ def h_recall_score(y_true, y_pred, class_hierarchy):
 
     Parameters
     ----------
-
-    y_true : (sparse) array-like, shape = [n_samples, n_classes].
+    y_true : array-like, shape = [n_samples, n_classes].
         Ground truth multi-class targets.
 
-    y_pred : (sparse) array-like, shape = [n_samples, n_classes].
+    y_pred : array-like, shape = [n_samples, n_classes].
         Predicted multi-class targets.
 
-    class_hierarchy : the class hierarchy graph, given as a `networkx.DiGraph` instance
+    class_hierarchy : the class hierarchy graph, given as a `networkx.DiGraph` instance.
+        Node ids must be integer and correspond to the indices into the y_true / y_pred matrices.
+
+    Returns
+    -------
+    hR : float
+        The computed hierarchical recall score.
 
     """
     y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
@@ -111,14 +135,22 @@ def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1.):
 
     Parameters
     ----------
-
-    y_true : (sparse) array-like, shape = [n_samples, n_classes].
+    y_true : array-like, shape = [n_samples, n_classes].
         Ground truth multi-class targets.
 
-    y_pred : (sparse) array-like, shape = [n_samples, n_classes].
+    y_pred : array-like, shape = [n_samples, n_classes].
         Predicted multi-class targets.
 
     class_hierarchy : the class hierarchy graph, given as a `networkx.DiGraph` instance
+        Node ids must be integer and correspond to the indices into the y_true / y_pred matrices.
+
+    beta: float
+        the beta parameter for the F-beta score. Defaults to F1 score (beta=1).
+
+    Returns
+    -------
+    hFscore : float
+        The computed hierarchical F-score.
 
     """
     hP = h_precision_score(y_true, y_pred, class_hierarchy)

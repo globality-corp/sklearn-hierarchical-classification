@@ -146,7 +146,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         check_is_fitted(self, "graph_")
         X = check_array(X, accept_sparse=False)
 
-        def classify(x):
+        def _classify(x):
             y_pred = []
             for node_id in root_nodes(self.graph_):
                 path, scores = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
@@ -155,7 +155,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return y_pred[0]
 
         y_pred = np.apply_along_axis(
-            classify,
+            _classify,
             axis=1,
             arr=X,
         )
