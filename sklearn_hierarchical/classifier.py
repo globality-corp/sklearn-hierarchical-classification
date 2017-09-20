@@ -4,8 +4,8 @@ Hierarchical classifier interface.
 """
 from collections import defaultdict
 
-import networkx as nx
 import numpy as np
+from networkx import DiGraph, dfs_edges
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
@@ -98,6 +98,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         Returns
         -------
         self
+
         """
         X, y = check_X_y(X, y, accept_sparse=False)
         check_classification_targets(y)
@@ -106,7 +107,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         # Initialize NetworkX Graph from input class hierarchy
         self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)))
-        self.graph_ = nx.DiGraph(self.class_hierarchy_)
+        self.graph_ = DiGraph(self.class_hierarchy_)
         self.classes_ = list(
             node
             for node in list(self.graph_.nodes())
@@ -200,6 +201,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return len(self.classes_)
 
     def _recursive_build_features(self, X, y, node_id, progress):
+        if "X" in self.graph_.node[node_id]:
+            # Already visited this node in feature building phase
+            return self.graph_.node[node_id]["X"]
+
         self.logger.debug("Building features for node: %s", node_id)
         progress.update(1)
 
@@ -242,7 +247,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
         X = self.graph_.node[node_id]["X"]
-        nnz_rows = np.where(X.todense().any(axis=1))[0]
+        nnz_rows = nnz_rows_ix(X)
         X = X[nnz_rows, :]
 
         if len(nnz_rows) < self.min_num_samples:
@@ -297,7 +302,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     self.graph_.out_degree(child_node_id),
                 )
                 # For tracking progress, count this node as well as all of its descendants
-                progress.update(1 + len(list(nx.dfs_edges(self.graph_, child_node_id))))
+                progress.update(1 + len(list(dfs_edges(self.graph_, child_node_id))))
                 continue
 
             self._recursive_train_local_classifiers(
@@ -367,3 +372,12 @@ def make_flat_hierarchy(targets):
 
 def make_base_estimator():
     return LogisticRegression()
+
+
+def nnz_rows_ix(X):
+    """
+    Return row indices which have at least one non-zero column value.
+
+    """
+    return np.unique(X.nonzero()[0])
+    # np.where(X.any(axis=axis))[0]
