@@ -30,9 +30,9 @@ def fill_ancestors(y, graph, copy=True):
     """
     y_ = y.copy() if copy else y
     paths = all_pairs_shortest_path_length(graph.reverse(copy=False))
-    for target in paths:
+    for target, distances in paths:
         ix_rows = np.where(y[:, target] > 0)[0]
-        ancestors = list(paths[target].keys())
+        ancestors = list(distances.keys())
         y_[np.meshgrid(ix_rows, ancestors)] = 1
     graph.reverse(copy=False)
     return y_
