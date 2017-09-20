@@ -32,6 +32,15 @@ clf = HierarchicalClassifier(
 ```
 
 
+## Documentation
+
+Auto-generated documentation is provided via sphinx. To build / view:
+
+    $ cd docs/
+    $ make html
+    $ open _build/index.html
+
+
 ## Further Reading
 
 this module is heavily influenced by the following previous work and papers:
