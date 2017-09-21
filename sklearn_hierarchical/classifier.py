@@ -279,12 +279,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.graph_.node[node_id]["classifier"] = clf
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
-        progress.update(1)
-
         if self.graph_.node[node_id].get("classifier", None):
             # Already encountered this node, skip
             return
 
+        progress.update(1)
         self._train_local_classifier(X, y, node_id)
 
         for child_node_id in self.graph_.successors(node_id):
@@ -380,4 +379,3 @@ def nnz_rows_ix(X):
 
     """
     return np.unique(X.nonzero()[0])
-    # np.where(X.any(axis=axis))[0]
