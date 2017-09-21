@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 from networkx import DiGraph, dfs_edges
-from scipy.sparse import csr_matrix, lil_matrix
+from scipy.sparse import csr_matrix, issparse, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -100,7 +100,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
 
         """
-        X, y = check_X_y(X, y, accept_sparse=False)
+        X, y = check_X_y(X, y, accept_sparse='csr')
         check_classification_targets(y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
@@ -145,21 +145,17 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse=False)
+        X = check_array(X, accept_sparse='csr')
 
         def _classify(x):
             y_pred = []
             for node_id in root_nodes(self.graph_):
-                path, scores = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
+                path, scores = self._recursive_predict(x, node_id=node_id)
                 y_pred.append(path[-1])
             # TODO
             return y_pred[0]
 
-        y_pred = np.apply_along_axis(
-            _classify,
-            axis=1,
-            arr=X,
-        )
+        y_pred = apply_along_rows(_classify, X=X)
 
         return y_pred
 
@@ -259,10 +255,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             return
 
-        y = rollup_nodes(
-            graph=self.graph_,
-            root=node_id,
-            targets=[y[idx] for idx in nnz_rows],
+        y = np.array(
+            rollup_nodes(
+                graph=self.graph_,
+                root=node_id,
+                targets=[y[idx] for idx in nnz_rows],
+            )
         )
 
         if len(set(y)) < 2:
@@ -336,9 +334,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         return path, class_probabilities
 
-    def _progress(self, total, **kwargs):
+    def _progress(self, total, desc, **kwargs):
         if self.interactive:
-            return tqdm_notebook(total=total, **kwargs)
+            return tqdm_notebook(total=total, desc=desc)
         else:
             return DummyProgress()
 
@@ -371,6 +369,26 @@ def make_flat_hierarchy(targets):
 
 def make_base_estimator():
     return LogisticRegression()
+
+
+def apply_along_rows(func, X):
+    """
+    Apply function row-wise to input matrix X.
+    This will work for dense matrices (eg np.ndarray)
+    as well as for CSR sparse matrices.
+
+    """
+    if issparse(X):
+        return np.array([
+            func(X.getrow(i))
+            for i in range(X.shape[0])
+        ])
+    else:
+        return np.apply_along_axis(
+            lambda x: func(x.reshape(1, -1)),
+            axis=1,
+            arr=X,
+        )
 
 
 def nnz_rows_ix(X):
