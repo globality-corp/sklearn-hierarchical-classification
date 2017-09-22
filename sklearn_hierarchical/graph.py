@@ -2,6 +2,8 @@
 Graph processing helpers.
 
 """
+import logging
+
 from networkx import all_simple_paths
 
 
@@ -23,7 +25,17 @@ def rollup_nodes(graph, root, targets):
         #
         # for path in all_paths:
         #    resultset.append(path[1])
-        resultset.append(next(all_paths)[1])
+        try:
+            resultset.append(next(all_paths)[1])
+        except StopIteration:
+            logging.error(
+                "Could not find path from root='{}' to node_id='{}', targets: {}".format(
+                    root,
+                    node_id,
+                    targets,
+                ),
+            )
+            raise
 
     assert len(resultset) == len(targets)
 
