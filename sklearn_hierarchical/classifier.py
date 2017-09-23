@@ -175,21 +175,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             order, as they appear in the attribute `classes_`.
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse=False)
+        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
             y_pred = []
             for node_id in root_nodes(self.graph_):
-                path, class_probabilities = self._recursive_predict(x.reshape(1, -1), node_id=node_id)
+                path, class_probabilities = self._recursive_predict(x, node_id=node_id)
                 y_pred.append((path[-1], class_probabilities))
             # TODO support multi-label / paths?
             return y_pred[0][1]
 
-        y_pred = np.apply_along_axis(
-            _classify,
-            axis=1,
-            arr=X,
-        )
+        y_pred = apply_along_rows(_classify, X=X)
+
         return y_pred
 
     @property
