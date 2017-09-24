@@ -19,65 +19,111 @@ from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 
 
+VALID_ALGORITHM = ("lcn", "lcpn")
+VALID_PREDICTION_DEPTH = ("mlnp", "nmlnp")
+VALID_TRAINING_STRATEGY = ("exclusive", "less_exclusive", "inclusive", "less_inclusive",
+                           "siblings", "exclusive_siblings")
+
+
 @logger
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
+    """Hierarchical classification strategy
 
-    def __init__(self, base_estimator=None, class_hierarchy=None, min_num_samples=1, interactive=False):
-        """Hierarchical classification strategy
+    Hierarchical classification in general deals with the scenario where our target classes
+    have inherent structure that can generally be represented as a tree or a directed acyclic graph (DAG),
+    with nodes representing the target classes themselves, and edges representing their inter-relatedness,
+    e.g 'IS A' semantics.
 
-        Hierarchical classification in general deals with the scenario where our target classes
-        have inherent structure that can generally be represented as a tree or a directed acyclic graph (DAG),
-        with nodes representing the target classes themselves, and edges representing their inter-relatedness,
-        e.g 'IS A' semantics.
+    Within this general framework, several distinctions can be made based on a few key modelling decisions:
 
-        Within this general framework, several distinctions can be made based on a few key modelling decisions:
+    - Multi-label classification - Do we support classifying into more than a single target class/label
+    - Mandatory / Non-mandatory leaf node prediction - Do we require that classification always results with
+        classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
+    - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
+        distinguish between three main modes of local classification:
+            * "One classifier per parent node" - where each non-terminal node can be fitted with a multi-class
+                classifier to predict which one of its child nodes is relevant for given example.
+            * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
+                returns a binary (or a probability) score indicating the fitness for that node and the current
+                example.
+            * Global / "big bang" classifiers - where a single classifier predicts the full path in the hierarchy
+                for a given example.
 
-        - Multi-label classification - Do we support classifying into more than a single target class/label
-        - Mandatory / Non-mandatory leaf node prediction - Do we require that classification always results with
-            classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
-        - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
-            distinguish between three main modes of local classification:
-                * "One classifier per parent node" - where each non-terminal node can be fitted with a multi-class
-                    classifier to predict which one of its child nodes is relevant for given example.
-                * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
-                    returns a binary (or a probability) score indicating the fitness for that node and the current
-                    example.
-                * Global / "big bang" classifiers - where a single classifier predicts the full path in the hierarchy
-                    for a given example.
+    The nomenclature used here is based on the framework outlined in [1].
 
-        The nomenclature used here is based on the following papers:
+    Parameters
+    ----------
+    base_estimator : classifier object
+        A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
+        base classifier. If not provided, a base estimator will be chosen by the framework using various
+        meta-learning heuristics (WIP).
 
-            "A survey of hierarchical classification across different application domains" - CN Silla et al. 2011
+    class_hierarchy : networkx.DiGraph object
+        A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
+        If not provided, this will be initialized during the `fit` operation into a trivial graph structure linking
+        all classes given in `y` to an artificial "ROOT" node.
 
-        Parameters
-        ----------
-        base_estimator: classifier object
-            A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
-            base classifier. If not provided, a base estimator will be chosen by the framework using various
-            meta-learning heuristics (WIP).
+    prediction_depth : "mlnp", "nmlnp"
+        Prediction depth requirements. This corresponds to whether we wish the classifier to always terminate at
+        a leaf node (mandatory leaf-node prediction, "mlnp"), or wish to support early termination via some
+        stopping criteria (non-mandatory leaf-node prediction, "nmlnp"). When "nmlnp" is specified, the
+        stopping_criteria parameter is used to control the behaviour of the classifier.
 
-        class_hierarchy: networkx.DiGraph object
-            A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
-            If not provided, this will be initialized during the `fit` operation into a trivial graph structure linking
-            all classes given in `y` to an artificial "ROOT" node.
+    algorithm : "lcn", "lcpn"
+        The algorithm type to use for building the hierarchical classification, according to the
+        taxonomy defined in [1].
 
-        min_num_samples : int
-            Minimum number of training samples required to train a local classifier on a node (class)
+        "lcpn" (which is the default) stands for "local classifier per parent node". Under this model,
+        a multi-class classifier is trained at each parent node, to distinguish between each child nodes.
 
-        interactive : bool
-            If set to True, functionality which is useful for interactive usage (e.g in a Jupyter notebook) will be
-            enabled. Specifically, fitting the model will display progress bars (via tqdm) where appropriate, and more
-            verbose logging will be emitted.
+        "lcn", which stands for "local classifier per node". Under this model, a binary classifier is trained
+        at each node. Under this model, a further distinction is made based on how the training data set is constructed.
+        This is controlled by the "training_strategy" parameter.
 
-        Attributes
-        ----------
-        classes_ : array, shape = [`n_classes`]
-            Flat array of class labels
+    training_strategy: "exclusive", "less_exclusive", "inclusive", "less_inclusive",
+                       "siblings", "exclusive_siblings", or None.
+        This parameter is used when the 'algorithm' parameter is to set to "lcn", and dictates how training data
+        is constructed for training the binary classifier at each node.
 
-        """
+    stopping_criteria: function, float, or None.
+        This parameter is used when the 'prediction_depth' parameter is set to "nmlnp", and is used to evaluate
+        at a given node whether classification should terminate or continue further down the hierarchy.
+
+        When set to a float, the prediction will stop if the reported confidence at current classifier is below
+        the provided value.
+
+        When set to a function, the callback function will be called with the current node attributes,
+        including its metafeatures, and the current classification results.
+        This allows the user to define arbitrary logic that can decide whether classification should stop at
+        the current node or continue. The function should return True if classification should continue,
+        or False if classification should stop at current node.
+
+    interactive : bool
+        If set to True, functionality which is useful for interactive usage (e.g in a Jupyter notebook) will be
+        enabled. Specifically, fitting the model will display progress bars (via tqdm) where appropriate, and more
+        verbose logging will be emitted.
+
+    Attributes
+    ----------
+    classes_ : array, shape = [`n_classes`]
+        Flat array of class labels
+
+    References
+    ----------
+
+    .. [1] CN Silla et al., "A survey of hierarchical classification across
+           different application domains", 2011.
+
+    """
+    def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
+                 algorithm="lcpn", training_strategy=None, stopping_criteria=None,
+                 interactive=False):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
-        self.min_num_samples = min_num_samples
+        self.prediction_depth = prediction_depth
+        self.algorithm = algorithm
+        self.training_strategy = training_strategy
+        self.stopping_criteria = stopping_criteria
         self.interactive = interactive
 
     def fit(self, X, y=None, sample_weight=None):
@@ -105,12 +151,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
 
+        # Check that parameter assignment is consistent
+        self._check_parameters()
+
         # Initialize NetworkX Graph from input class hierarchy
         self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)))
         self.graph_ = DiGraph(self.class_hierarchy_)
         self.classes_ = list(
             node
-            for node in list(self.graph_.nodes())
+            for node in self.graph_.nodes()
             if node != ROOT
         )
 
@@ -152,7 +201,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node_id in root_nodes(self.graph_):
                 path, scores = self._recursive_predict(x, node_id=node_id)
                 y_pred.append(path[-1])
-            # TODO
+            # TODO support multi-label / paths?
             return y_pred[0]
 
         y_pred = apply_along_rows(_classify, X=X)
@@ -193,6 +242,51 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     def n_classes_(self):
         return len(self.classes_)
 
+    def _check_parameters(self):
+        """Check the parameter assignment is valid and internally consistent."""
+        if self.algorithm not in VALID_ALGORITHM:
+            raise TypeError(
+                "'algorithm' must be set to one of: {}.".format(
+                    ", ".join(VALID_ALGORITHM),
+                )
+            )
+
+        if (self.algorithm == "lcn") ^ bool(self.training_strategy):
+            raise TypeError(
+                """When 'algorithm' is set to "lcn", 'training_strategy' must be set
+                to a float or callable. Conversly, training_strategy should not be specified
+                when algorithm is not set to "lcn"."""
+            )
+
+        if self.training_strategy and self.training_strategy not in VALID_TRAINING_STRATEGY:
+            raise TypeError(
+                "'training_strategy' must be set to one of: {}.".format(
+                    ", ".join(VALID_TRAINING_STRATEGY),
+                )
+            )
+
+        if self.prediction_depth not in VALID_PREDICTION_DEPTH:
+            raise TypeError(
+                "'prediction_depth' must be set to one of: {}.".format(
+                    ", ".join(VALID_PREDICTION_DEPTH),
+                )
+            )
+
+        if (self.prediction_depth == "nmlnp") ^ bool(self.stopping_criteria):
+            raise TypeError(
+                """When 'prediction_depth' is set to "nmlnp", 'stopping_criteria' must be set
+                to a float or callable. Conversly, stopping_criteria should not be specified
+                when prediction_depth is not set to "nmlnp"."""
+            )
+
+        if self.stopping_criteria and not any((
+            isinstance(self.stopping_criteria, float),
+            callable(self.stopping_criteria),
+        )):
+            raise TypeError(
+                """'stopping_criteria' must be set to a float or a callable."""
+            )
+
     def _recursive_build_features(self, X, y, node_id, progress):
         if "X" in self.graph_.node[node_id]:
             # Already visited this node in feature building phase
@@ -203,7 +297,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if self.graph_.out_degree(node_id) == 0:
             # Terminal node
-            self.logger.debug("_recursive_build_features() - node_id: %s, set(y): %s", node_id, set(y))
+            self.logger.debug("_build_features() - node_id: %s, set(y): %s", node_id, set(y))
             indices = np.flatnonzero(y == node_id)
             self.graph_.node[node_id]["X"] = self._build_features(
                 X=X,
@@ -211,6 +305,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             return self.graph_.node[node_id]["X"]
 
+        # Non-terminal node
         self.graph_.node[node_id]["X"] = csr_matrix(
             X.shape,
             dtype=X.dtype,
@@ -224,12 +319,46 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
+        self.graph_.node[node_id]["metafeatures"] = self._build_metafeatures(
+            X=self.graph_.node[node_id]["X"],
+            y=y,
+        )
+
         return self.graph_.node[node_id]["X"]
 
     def _build_features(self, X, indices):
         X_ = lil_matrix(X.shape, dtype=X.dtype)
         X_[indices, :] = X[indices, :]
         return X_.tocsr()
+
+    def _build_metafeatures(self, X, y):
+        """
+        Build the meta-features associated with a particular node.
+
+        These are various features that can be used in training and prediction time,
+        e.g the number of training samples available for the classifier trained at that node,
+        the number of targets (classes) to be predicted at that node, etc.
+
+        Parameters
+        ----------
+        X : (sparse) array-like, shape = [num_samples, num_features]
+            The training data matrix at current node.
+
+        Returns
+        -------
+        metafeatures : dict
+            Python dictionary of meta-features. The following meta-features are computed by default:
+            * 'num_samples' - Number of samples used to train classifier at given node.
+            * 'num_targets' - Number of targets (classes) to classify into at given node.
+
+        """
+        # Indices of non-zero rows in X, i.e rows corresponding to relevant samples for this node.
+        ix = nnz_rows_ix(X)
+
+        return dict(
+            num_samples=len(ix),
+            num_targets=len(np.unique(y[ix])),
+        )
 
     def _train_local_classifier(self, X, y, node_id):
         self.logger.debug(
@@ -242,15 +371,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         X = self.graph_.node[node_id]["X"]
         nnz_rows = nnz_rows_ix(X)
         X = X[nnz_rows, :]
-
-        if len(nnz_rows) < self.min_num_samples:
-            self.logger.warning(
-                "*** Not enough samples to train classifier for node %s, skipping (%s < %s)",
-                node_id,
-                len(nnz_rows),
-                self.min_num_samples,
-            )
-            return
 
         y = np.array(
             rollup_nodes(
@@ -275,7 +395,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
         if self.graph_.node[node_id].get("classifier", None):
-            # Already encountered this node, skip
+            # Already encountered and trained classifier at this node, no-op
             return
 
         progress.update(1)
@@ -318,18 +438,50 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             prediction = clf.classes_[argmax]
             score = probs[argmax]
 
-            # Update current path
-            path_probability *= score
-            path.append(prediction)
-
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
                 class_idx = self.classes_.index(class_)
                 class_probabilities[class_idx] = probs[local_class_idx]
 
+            if self._should_early_terminate(
+                current_node=path[-1],
+                prediction=prediction,
+                score=score,
+            ):
+                break
+
+            # Update current path
+            path_probability *= score
+            path.append(prediction)
+
             clf = self.graph_.node[prediction].get("classifier", None)
 
         return path, class_probabilities
+
+    def _should_early_terminate(self, current_node, prediction, score):
+        """
+        Evaluate whether classification should terminate at given step.
+
+        This depends on whether early-termination, as dictated by the the 'prediction_depth'
+          and 'stopping_criteria' parameters, is triggered.
+
+        """
+        if self.prediction_depth != "nmlnp":
+            # Prediction depth parameter does not allow for early termination
+            return False
+
+        if (isinstance(self.stopping_criteria, float) and score < self.stopping_criteria):
+            return True
+
+        if callable(self.stopping_criteria):
+            return self.stopping_criteria(
+                current_node=self.graph_.nodes[current_node],
+                prediction=prediction,
+                score=score,
+            )
+
+        # Shouldn't really ever get here
+        return False
 
     def _progress(self, total, desc, **kwargs):
         if self.interactive:
@@ -353,14 +505,14 @@ class DummyProgress(object):
         pass
 
 
-def make_flat_hierarchy(targets):
+def make_flat_hierarchy(targets, root=ROOT):
     """
     Create a trivial "flat" hiearchy, linking all given targets to an artificial ROOT node.
 
     """
     adjacency = defaultdict(list)
     for target in targets:
-        adjacency[ROOT].append(target)
+        adjacency[root].append(target)
     return adjacency
 
 

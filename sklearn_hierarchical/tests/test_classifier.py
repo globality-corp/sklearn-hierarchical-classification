@@ -4,10 +4,13 @@ Unit-tests for the classifier interface.
 """
 from hamcrest import (
     assert_that,
+    calling,
     close_to,
     contains_inanyorder,
     equal_to,
+    has_entries,
     is_,
+    raises,
 )
 from networkx import DiGraph
 from sklearn import svm
@@ -25,11 +28,52 @@ RANDOM_STATE = 42
 
 
 def test_estimator_inteface():
-    """Run the scikit-learn estimator compatability test suite"""
+    """Run the scikit-learn estimator compatability test suite."""
     check_estimator(HierarchicalClassifier())
 
 
-def test_fitted_properties():
+def test_parameter_validation():
+    """Test parameter validation checks for consistent assignment."""
+    test_cases = [
+        dict(
+            prediction_depth="nmlnp",
+            stopping_criteria=None,
+        ),
+        dict(
+            prediction_depth="nmlnp",
+            stopping_criteria="not_a_float_or_a_callable",
+        ),
+        dict(
+            prediction_depth="mlnp",
+            stopping_criteria=123.4,
+        ),
+        dict(
+            prediction_depth="some_invalid_prediction_depth_value",
+        ),
+        dict(
+            algorithm="lcn",
+            training_strategy=None,
+        ),
+        dict(
+            algorithm="lcn",
+            training_strategy="some_invalid_training_strategy",
+        ),
+        dict(
+            algorithm="lcpn",
+            training_strategy="exclusive",
+        ),
+        dict(
+            algorithm="some_invalid_algorithm_value",
+        ),
+    ]
+
+    for classifier_kwargs in test_cases:
+        clf, (X, y) = make_classifier_and_data(**classifier_kwargs)
+        assert_that(calling(clf.fit).with_args(X=X, y=y), raises(TypeError))
+
+
+def test_fitted_attributes():
+    """Test classifier attributes are set correctly after fitting."""
     n_classes = 10
     clf, (X, y) = make_classifier_and_data(n_classes=n_classes)
 
@@ -39,6 +83,15 @@ def test_fitted_properties():
     assert_that(clf.graph_, matches_graph(DiGraph(clf.class_hierarchy)))
     assert_that(clf.classes_, contains_inanyorder(*range(n_classes)))
     assert_that(clf.n_classes_, is_(equal_to(n_classes)))
+    assert_that(
+        clf.graph_.nodes[ROOT],
+        has_entries(
+            metafeatures=has_entries(
+                num_samples=X.shape[0],
+                num_targets=n_classes,
+            ),
+        ),
+    )
 
 
 def test_trivial_hierarchy_classification():

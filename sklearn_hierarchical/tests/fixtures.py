@@ -90,10 +90,11 @@ def make_digits_dataset(targets=None):
     return X, y
 
 
-def make_classifier(base_estimator=None, class_hierarchy=None):
+def make_classifier(base_estimator=None, class_hierarchy=None, **kwargs):
     return HierarchicalClassifier(
         class_hierarchy=class_hierarchy,
         base_estimator=base_estimator,
+        **kwargs
     )
 
 
@@ -102,7 +103,7 @@ def make_classifier_and_data(
     n_samples=1000,
     n_features=10,
     class_hierarchy=None,
-    **kwargs
+    **classifier_kwargs
 ):
     X, y = make_blobs(
         n_samples=n_samples,
@@ -117,7 +118,7 @@ def make_classifier_and_data(
 
     clf = make_classifier(
         class_hierarchy=class_hierarchy,
-        **kwargs
+        **classifier_kwargs
     )
 
     return clf, (X, y)
