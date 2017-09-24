@@ -9,6 +9,7 @@ from hamcrest import (
     contains_inanyorder,
     equal_to,
     has_entries,
+    has_item,
     is_,
     raises,
 )
@@ -113,7 +114,8 @@ def test_trivial_hierarchy_classification():
 
 
 def test_nontrivial_hierarchy_leaf_classification():
-    """Test that a nontrivial hierarchy leaf classification behaves as expected.
+    """Test that a nontrivial hierarchy leaf classification behaves as expected
+    under the default parameters.
 
     We build the following class hierarchy along with data from the handwritten digits dataset:
 
@@ -153,3 +155,35 @@ def test_nontrivial_hierarchy_leaf_classification():
     accuracy = accuracy_score(y_test, y_pred)
 
     assert_that(accuracy, is_(close_to(1., delta=0.02)))
+
+
+def test_nmlnp_strategy_with_float_stopping_criteria():
+    class_hierarchy = {
+        ROOT: ["A", "B"],
+        "A": [1, 5, 6, 7],
+        "B": [2, 3, 4, 8, 9],
+    }
+    base_estimator = svm.SVC(
+        gamma=0.001,
+        kernel="rbf",
+        probability=True
+    )
+    clf = make_classifier(
+        base_estimator=base_estimator,
+        class_hierarchy=class_hierarchy,
+        prediction_depth="nmlnp",
+        stopping_criteria=0.9,
+    )
+
+    X, y = make_digits_dataset()
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+    )
+
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+
+    assert_that(list(y_pred), has_item("B"))

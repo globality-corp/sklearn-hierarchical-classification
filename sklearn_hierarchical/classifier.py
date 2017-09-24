@@ -470,7 +470,17 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Prediction depth parameter does not allow for early termination
             return False
 
-        if (isinstance(self.stopping_criteria, float) and score < self.stopping_criteria):
+        if (
+            isinstance(self.stopping_criteria, float)
+            and current_node != ROOT
+            and score < self.stopping_criteria
+        ):
+            self.logger.debug(
+                "_should_early_terminate() - score %s < %s, terminating at node %s",
+                score,
+                self.stopping_criteria,
+                current_node,
+            )
             return True
 
         if callable(self.stopping_criteria):
