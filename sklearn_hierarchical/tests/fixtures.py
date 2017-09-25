@@ -81,11 +81,15 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
     return to_dict_of_lists(G)
 
 
-def make_digits_dataset(targets=None):
+def make_digits_dataset(targets=None, as_str=True):
     X, y = load_digits(return_X_y=True)
     if targets:
         ix = np.isin(y, targets)
         X, y = X[np.where(ix)], y[np.where(ix)]
+
+    if as_str:
+        # Convert targets (classes) to strings
+        y = y.astype(str)
 
     return X, y
 

@@ -142,6 +142,7 @@ def test_nontrivial_hierarchy_leaf_classification():
     )
     X, y = make_digits_dataset(
         targets=[1, 7, 3, 8, 9],
+        as_str=False,
     )
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -158,10 +159,12 @@ def test_nontrivial_hierarchy_leaf_classification():
 
 
 def test_nmlnp_strategy_with_float_stopping_criteria():
+    # since NMLNP results in a mix of intermediate and lefa nodes,
+    # make sure they are all of same dtype (str)
     class_hierarchy = {
         ROOT: ["A", "B"],
-        "A": [1, 5, 6, 7],
-        "B": [2, 3, 4, 8, 9],
+        "A": ["1", "5", "6", "7"],
+        "B": ["2", "3", "4", "8", "9"],
     }
     base_estimator = svm.SVC(
         gamma=0.001,
