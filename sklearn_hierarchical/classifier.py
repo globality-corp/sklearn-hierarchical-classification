@@ -42,7 +42,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
     - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
         distinguish between three main modes of local classification:
-            * "One classifier per parent node" - where each non-terminal node can be fitted with a multi-class
+            * "One classifier per parent node" - where each non-leaf node can be fitted with a multi-class
                 classifier to predict which one of its child nodes is relevant for given example.
             * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
                 returns a binary (or a probability) score indicating the fitness for that node and the current
@@ -297,7 +297,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         progress.update(1)
 
         if self.graph_.out_degree(node_id) == 0:
-            # Terminal node
+            # Leaf node
             self.logger.debug("_build_features() - node_id: %s, set(y): %s", node_id, set(y))
             indices = np.flatnonzero(y == node_id)
             self.graph_.node[node_id]["X"] = self._build_features(
@@ -306,7 +306,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             return self.graph_.node[node_id]["X"]
 
-        # Non-terminal node
+        # Non-leaf node
         self.graph_.node[node_id]["X"] = csr_matrix(
             X.shape,
             dtype=X.dtype,
@@ -362,6 +362,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
     def _train_local_classifier(self, X, y, node_id):
+        if self.graph_.out_degree(node_id) == 0:
+            # Leaf node
+            if self.algorithm == "lcpn":
+                # Leaf nodes do not get a classifier assigned in LCPN algorithm mode.
+                return
+
         self.logger.debug(
             "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(unique(y)): %s",
             node_id,
@@ -405,7 +411,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         for child_node_id in self.graph_.successors(node_id):
             out_degree = self.graph_.out_degree(child_node_id)
             if not out_degree:
-                # Terminal node, skip
+                # Leaf node, skip
                 progress.update(1)
                 continue
 
