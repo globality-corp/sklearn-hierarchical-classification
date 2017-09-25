@@ -6,7 +6,7 @@ from collections import defaultdict
 
 import numpy as np
 from networkx import DiGraph, dfs_edges
-from scipy.sparse import csr_matrix, issparse, lil_matrix
+from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -14,6 +14,7 @@ from sklearn.utils.validation import check_array, check_consistent_length, check
 from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
+from sklearn_hierarchical.array import apply_along_rows, nnz_rows_ix
 from sklearn_hierarchical.constants import ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import rollup_nodes, root_nodes
@@ -164,7 +165,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
         # Initialize the base estimator
-        self.base_estimator_ = self.base_estimator or make_base_estimator()
+        self.base_estimator_ = self.base_estimator or self._make_base_estimator()
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
@@ -493,6 +494,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         # Shouldn't really ever get here
         return False
 
+    def _make_base_estimator(self):
+        return LogisticRegression()
+
     def _progress(self, total, desc, **kwargs):
         if self.interactive:
             return tqdm_notebook(total=total, desc=desc)
@@ -524,35 +528,3 @@ def make_flat_hierarchy(targets, root=ROOT):
     for target in targets:
         adjacency[root].append(target)
     return adjacency
-
-
-def make_base_estimator():
-    return LogisticRegression()
-
-
-def apply_along_rows(func, X):
-    """
-    Apply function row-wise to input matrix X.
-    This will work for dense matrices (eg np.ndarray)
-    as well as for CSR sparse matrices.
-
-    """
-    if issparse(X):
-        return np.array([
-            func(X.getrow(i))
-            for i in range(X.shape[0])
-        ])
-    else:
-        return np.apply_along_axis(
-            lambda x: func(x.reshape(1, -1)),
-            axis=1,
-            arr=X,
-        )
-
-
-def nnz_rows_ix(X):
-    """
-    Return row indices which have at least one non-zero column value.
-
-    """
-    return np.unique(X.nonzero()[0])
