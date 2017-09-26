@@ -366,14 +366,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Leaf node
             if self.algorithm == "lcpn":
                 # Leaf nodes do not get a classifier assigned in LCPN algorithm mode.
+                self.logger.debug(
+                    "_train_local_classifier() - skipping leaf node %s when algorithm is 'lcpn'",
+                    node_id,
+                )
                 return
-
-        self.logger.debug(
-            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(unique(y)): %s",
-            node_id,
-            X.shape,
-            len(np.unique(y)),
-        )
 
         X = self.graph_.node[node_id]["X"]
         nnz_rows = nnz_rows_ix(X)
@@ -387,9 +384,26 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
         )
 
-        if len(set(y)) < 2:
+        self.logger.debug(
+            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(unique(y)): %s",
+            node_id,
+            X.shape,
+            len(np.unique(y)),
+        )
+
+        if len(set(y)) == 0:
+            # No training data could be materialized for current node
+            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
-                "*** Not enough targets to train classifier for node %s, Will trivially predict %s",
+                "_train_local_classifier() - not enough training data available to train classifier, classification in branch will terminate at node %s",  # noqa:E501
+                node_id,
+            )
+            return
+        elif len(set(y)) == 1:
+            # Training data could be materialized for only a single target at current node
+            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            self.logger.warning(
+                "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
                 y[0],
             )
