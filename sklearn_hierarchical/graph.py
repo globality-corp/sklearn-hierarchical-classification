@@ -3,8 +3,20 @@ Graph processing helpers.
 
 """
 import logging
+from collections import defaultdict
 
 from networkx import all_simple_paths
+
+
+def make_flat_hierarchy(targets, root):
+    """
+    Create a trivial "flat" hiearchy, linking all given targets to an artificial ROOT node.
+
+    """
+    adjacency = defaultdict(list)
+    for target in targets:
+        adjacency[root].append(target)
+    return adjacency
 
 
 def rollup_nodes(graph, root, targets):

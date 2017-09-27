@@ -2,8 +2,6 @@
 Hierarchical classifier interface.
 
 """
-from collections import defaultdict
-
 import numpy as np
 from networkx import DiGraph, dfs_edges
 from scipy.sparse import csr_matrix, lil_matrix
@@ -17,14 +15,9 @@ from tqdm import tqdm_notebook
 from sklearn_hierarchical.array import apply_along_rows, nnz_rows_ix
 from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
 from sklearn_hierarchical.decorators import logger
-from sklearn_hierarchical.graph import rollup_nodes, root_nodes
-
-
-# Enumeration of valid configuration types
-VALID_ALGORITHM = ("lcn", "lcpn")
-VALID_PREDICTION_DEPTH = ("mlnp", "nmlnp")
-VALID_TRAINING_STRATEGY = ("exclusive", "less_exclusive", "inclusive", "less_inclusive",
-                           "siblings", "exclusive_siblings")
+from sklearn_hierarchical.dummy import DummyProgress
+from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes, root_nodes
+from sklearn_hierarchical.validation import is_estimator, validate_parameters
 
 
 @logger
@@ -55,9 +48,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     Parameters
     ----------
-    base_estimator : classifier object, dict, or None
+    base_estimator : classifier object, function, dict, or None
         A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
         base classifier.
+        If a callable function is given, it will be called to evaluate which classifier to instantiate for
+        current node. The function will be called with the current node and the graph instance.
         Alternatively, a dictionary mapping classes to classifier objects can be given. In this case,
         when building the classifier tree, the dictionary will be consulted and if a key is found matching
         a particular node, the base classifier pointed to in the dict will be used. Since this is most often
@@ -163,7 +158,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self._check_parameters()
 
         # Initialize NetworkX Graph from input class hierarchy
-        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)))
+        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)), root=ROOT)
         self.graph_ = DiGraph(self.class_hierarchy_)
         self.classes_ = list(
             node
@@ -249,48 +244,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def _check_parameters(self):
         """Check the parameter assignment is valid and internally consistent."""
-        if self.algorithm not in VALID_ALGORITHM:
-            raise TypeError(
-                "'algorithm' must be set to one of: {}.".format(
-                    ", ".join(VALID_ALGORITHM),
-                )
-            )
-
-        if (self.algorithm == "lcn") ^ bool(self.training_strategy):
-            raise TypeError(
-                """When 'algorithm' is set to "lcn", 'training_strategy' must be set
-                to a float or callable. Conversly, training_strategy should not be specified
-                when algorithm is not set to "lcn"."""
-            )
-
-        if self.training_strategy and self.training_strategy not in VALID_TRAINING_STRATEGY:
-            raise TypeError(
-                "'training_strategy' must be set to one of: {}.".format(
-                    ", ".join(VALID_TRAINING_STRATEGY),
-                )
-            )
-
-        if self.prediction_depth not in VALID_PREDICTION_DEPTH:
-            raise TypeError(
-                "'prediction_depth' must be set to one of: {}.".format(
-                    ", ".join(VALID_PREDICTION_DEPTH),
-                )
-            )
-
-        if (self.prediction_depth == "nmlnp") ^ bool(self.stopping_criteria):
-            raise TypeError(
-                """When 'prediction_depth' is set to "nmlnp", 'stopping_criteria' must be set
-                to a float or callable. Conversly, stopping_criteria should not be specified
-                when prediction_depth is not set to "nmlnp"."""
-            )
-
-        if self.stopping_criteria and not any((
-            isinstance(self.stopping_criteria, float),
-            callable(self.stopping_criteria),
-        )):
-            raise TypeError(
-                """'stopping_criteria' must be set to a float or a callable."""
-            )
+        validate_parameters(self)
 
     def _recursive_build_features(self, X, y, node_id, progress):
         if "X" in self.graph_.node[node_id]:
@@ -533,37 +487,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             else:
                 return clone(self.base_estimator[DEFAULT])
 
-        # single base estimator object, return a copy
-        return clone(self.base_estimator)
+        if is_estimator(self.base_estimator):
+            # single base estimator object, return a copy
+            return clone(self.base_estimator)
+
+        # By default, treat as callable factory
+        self.base_estimator(node_id=node_id, graph=self.graph_)
 
     def _progress(self, total, desc, **kwargs):
         if self.interactive:
             return tqdm_notebook(total=total, desc=desc)
         else:
             return DummyProgress()
-
-
-class DummyProgress(object):
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-    def update(self, value):
-        pass
-
-    def close(self):
-        pass
-
-
-def make_flat_hierarchy(targets, root=ROOT):
-    """
-    Create a trivial "flat" hiearchy, linking all given targets to an artificial ROOT node.
-
-    """
-    adjacency = defaultdict(list)
-    for target in targets:
-        adjacency[root].append(target)
-    return adjacency
