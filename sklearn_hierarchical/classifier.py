@@ -9,13 +9,13 @@ from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clo
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.multiclass import OneVsRestClassifier
-from sklearn.preprocessing import LabelBinarizer, MultiLabelBinarizer
+from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
-from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_columns_count, nnz_rows_ix
-from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
+from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_rows_ix
+from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, LABEL_BINARIZER, METAFEATURES, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.dummy import DummyProgress
 from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes
@@ -345,7 +345,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         label_binarizer = None
         if self.is_tree_:
             y_rolled_up = flatten_list(y_rolled_up)
-            # label_binarizer = LabelBinarizer()
             Y = y_rolled_up
         else:
             label_binarizer = MultiLabelBinarizer()
@@ -381,7 +380,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         clf.fit(X=X, y=Y)
         self.graph_.node[node_id][CLASSIFIER] = clf
-        self.graph_.node[node_id]["LABEL_BINARIZER"] = label_binarizer
+        self.graph_.node[node_id][LABEL_BINARIZER] = label_binarizer
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
         if self.graph_.node[node_id].get(CLASSIFIER, None):
@@ -418,7 +417,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def _recursive_predict(self, x, root):
         clf = self.graph_.node[root][CLASSIFIER]
-        label_binarizer = self.graph_.node[root]["LABEL_BINARIZER"]
+        label_binarizer = self.graph_.node[root].get(LABEL_BINARIZER, None)
         path = [root]
         path_proba = []
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
@@ -456,7 +455,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             path.append(prediction)
 
             clf = self.graph_.node[prediction].get(CLASSIFIER, None)
-            label_binarizer = self.graph_.node[prediction].get("LABEL_BINARIZER", None)
+            label_binarizer = self.graph_.node[prediction].get(LABEL_BINARIZER, None)
 
         return path, class_proba
 
