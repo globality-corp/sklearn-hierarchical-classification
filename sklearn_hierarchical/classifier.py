@@ -15,11 +15,12 @@ from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
 from sklearn_hierarchical.array import apply_along_rows, nnz_rows_ix
-from sklearn_hierarchical.constants import ROOT
+from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.graph import rollup_nodes, root_nodes
 
 
+# Enumeration of valid configuration types
 VALID_ALGORITHM = ("lcn", "lcpn")
 VALID_PREDICTION_DEPTH = ("mlnp", "nmlnp")
 VALID_TRAINING_STRATEGY = ("exclusive", "less_exclusive", "inclusive", "less_inclusive",
@@ -54,10 +55,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     Parameters
     ----------
-    base_estimator : classifier object
+    base_estimator : classifier object, dict, or None
         A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
-        base classifier. If not provided, a base estimator will be chosen by the framework using various
-        meta-learning heuristics (WIP).
+        base classifier.
+        Alternatively, a dictionary mapping classes to classifier objects can be given. In this case,
+        when building the classifier tree, the dictionary will be consulted and if a key is found matching
+        a particular node, the base classifier pointed to in the dict will be used. Since this is most often
+        useful for specifying classifiers on only a handlful of objects, a special 'DEFAULT' key can be used to
+        set the base classifier to use as a 'catch all'.
+        If not provided, a base estimator will be chosen by the framework using various meta-learning
+        heuristics (WIP).
 
     class_hierarchy : networkx.DiGraph object
         A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
@@ -163,9 +170,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != ROOT
         )
-
-        # Initialize the base estimator
-        self.base_estimator_ = self.base_estimator or self._make_base_estimator()
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
@@ -409,13 +413,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
             clf = DummyClassifier(strategy="constant", constant=y[0])
         else:
-            clf = clone(self.base_estimator_)
+            clf = self._base_estimator_for(node_id)
 
         clf.fit(X=X, y=y)
-        self.graph_.node[node_id]["classifier"] = clf
+        self.graph_.node[node_id][CLASSIFIER] = clf
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
-        if self.graph_.node[node_id].get("classifier", None):
+        if self.graph_.node[node_id].get(CLASSIFIER, None):
             # Already encountered and trained classifier at this node, no-op
             return
 
@@ -448,7 +452,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
 
     def _recursive_predict(self, X, node_id):
-        clf = self.graph_.node[node_id]["classifier"]
+        clf = self.graph_.node[node_id][CLASSIFIER]
         path = [node_id]
         path_probability = 1.0
         class_probabilities = np.zeros_like(self.classes_, dtype=np.float64)
@@ -475,7 +479,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             path_probability *= score
             path.append(prediction)
 
-            clf = self.graph_.node[prediction].get("classifier", None)
+            clf = self.graph_.node[prediction].get(CLASSIFIER, None)
 
         return path, class_probabilities
 
@@ -514,8 +518,23 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         # Shouldn't really ever get here
         return False
 
-    def _make_base_estimator(self):
+    def _make_base_estimator(self, node_id):
         return LogisticRegression()
+
+    def _base_estimator_for(self, node_id):
+        if not self.base_estimator:
+            # No base estimator specified by user, try to pick best one
+            return self._make_base_estimator(node_id)
+
+        if isinstance(self.base_estimator, dict):
+            # user provided dictionary mapping nodes to estimators
+            if node_id in self.base_estimator:
+                return clone(self.base_estimator[node_id])
+            else:
+                return clone(self.base_estimator[DEFAULT])
+
+        # single base estimator object, return a copy
+        return clone(self.base_estimator)
 
     def _progress(self, total, desc, **kwargs):
         if self.interactive:

@@ -17,10 +17,12 @@ from networkx import DiGraph
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils.estimator_checks import check_estimator
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
-from sklearn_hierarchical.constants import ROOT
+from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
 from sklearn_hierarchical.tests.fixtures import make_classifier, make_classifier_and_data, make_digits_dataset
 from sklearn_hierarchical.tests.matchers import matches_graph
 
@@ -96,7 +98,7 @@ def test_fitted_attributes():
 
 
 def test_trivial_hierarchy_classification():
-    """Test that a trivial hierarchy behaves as expected."""
+    """Test that a trivial (degenerate) hierarchy behaves as expected."""
     clf, (X, y) = make_classifier_and_data(n_classes=5)
 
     X_train, X_test, y_train, y_test = train_test_split(
@@ -111,6 +113,39 @@ def test_trivial_hierarchy_classification():
     accuracy = accuracy_score(y_test, y_pred)
 
     assert_that(accuracy, is_(close_to(1., delta=0.05)))
+
+
+def test_base_estimator_as_dict():
+    """Test that specifying base_estimator as a dictionary mappings nodes to base estimators works."""
+    class_hierarchy = {
+        ROOT: ["A", "B"],
+        "A": [1, 7],
+        "B": [3, 8, 9],
+    }
+    clf = make_classifier(
+        base_estimator={
+            ROOT: KNeighborsClassifier(),
+            "B": svm.SVC(probability=True),
+            DEFAULT: MultinomialNB(),
+        },
+        class_hierarchy=class_hierarchy,
+    )
+    X, y = make_digits_dataset(
+        targets=[1, 7, 3, 8, 9],
+        as_str=False,
+    )
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+    )
+
+    clf.fit(X_train, y_train)
+
+    assert_that(isinstance(clf.graph_.nodes[ROOT][CLASSIFIER], KNeighborsClassifier))
+    assert_that(isinstance(clf.graph_.nodes["B"][CLASSIFIER], svm.SVC))
+    assert_that(isinstance(clf.graph_.nodes["A"][CLASSIFIER], MultinomialNB))
 
 
 def test_nontrivial_hierarchy_leaf_classification():
