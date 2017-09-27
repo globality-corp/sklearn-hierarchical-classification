@@ -3,7 +3,7 @@ Hierarchical classifier interface.
 
 """
 import numpy as np
-from networkx import DiGraph, dfs_edges, is_tree
+from networkx import DiGraph, is_tree
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
@@ -370,13 +370,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         elif num_targets == 1:
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
-            nnz_target_row = Y[0]
+            constant = y_rolled_up[0] if self.is_tree_ else y_rolled_up[0][0]
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
-                nnz_target_row,
+                constant,
             )
-            clf = DummyClassifier(strategy="constant", constant=nnz_target_row)
+            clf = DummyClassifier(strategy="constant", constant=constant)
         else:
             clf = self._base_estimator_for(node_id)
 
@@ -427,8 +427,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                         mapped_class = label_binarizer.classes_[class_]
                     except:
                         self.logger.error(
-                            "Couldnt map class. class_: %s, node_id: %s, label_binarizer.classes_: %s",
-                            class_, path[-1], label_binarizer.classes_)
+                            "Couldnt map class. clf: %s, class_: %s, node_id: %s, label_binarizer.classes_: %s",
+                            clf.__class__.__name__, class_, path[-1], label_binarizer.classes_)
                         raise
                 else:
                     mapped_class = clf.classes_[local_class_idx]
