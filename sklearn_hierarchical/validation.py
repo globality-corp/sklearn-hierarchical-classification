@@ -1,4 +1,4 @@
-"""Validation logic for hierarchical classifier."""
+"""Validation helpers."""
 from sklearn_hierarchical.constants import (
     VALID_ALGORITHM,
     VALID_PREDICTION_DEPTH,
@@ -7,7 +7,7 @@ from sklearn_hierarchical.constants import (
 
 
 class ParameterValidator(object):
-
+    """Parameter validation logic for the HierarchicalClassifier class."""
     def __init__(self, instance):
         self.instance = instance
 
