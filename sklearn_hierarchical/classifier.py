@@ -3,17 +3,19 @@ Hierarchical classifier interface.
 
 """
 import numpy as np
-from networkx import DiGraph, dfs_edges
+from networkx import DiGraph, dfs_edges, is_tree
 from scipy.sparse import csr_matrix, lil_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.preprocessing import LabelBinarizer, MultiLabelBinarizer
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
-from sklearn_hierarchical.array import apply_along_rows, nnz_rows_ix
-from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
+from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_columns_count, nnz_rows_ix
+from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.dummy import DummyProgress
 from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes
@@ -168,6 +170,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         # Initialize NetworkX Graph from input class hierarchy
         self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)), root=self.root)
         self.graph_ = DiGraph(self.class_hierarchy_)
+        self.is_tree_ = is_tree(self.graph_)
         self.classes_ = list(
             node
             for node in self.graph_.nodes()
@@ -203,11 +206,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
-            y_pred = []
+            # TODO support multi-label / paths
             path, scores = self._recursive_predict(x, root=self.root)
-            y_pred.append(path[-1])
-            # TODO support multi-label / paths?
-            return y_pred[0]
+            return path[-1]
 
         y_pred = apply_along_rows(_classify, X=X)
 
@@ -232,14 +233,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
-            y_pred = []
-            path, scores = self._recursive_predict(x, root=self.root)
-            y_pred.append((path[-1], scores))
-            # TODO support multi-label / paths?
-            return y_pred[0][1]
+            _, scores = self._recursive_predict(x, root=self.root)
+            return scores
 
         y_pred = apply_along_rows(_classify, X=X)
-
         return y_pred
 
     @property
@@ -282,7 +279,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
-        self.graph_.node[node_id]["metafeatures"] = self._build_metafeatures(
+        # Build and store metafeatures for node
+        self.graph_.node[node_id][METAFEATURES] = self._build_metafeatures(
             X=self.graph_.node[node_id]["X"],
             y=y,
         )
@@ -338,22 +336,29 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         nnz_rows = nnz_rows_ix(X)
         X = X[nnz_rows, :]
 
-        y = np.array(
-            rollup_nodes(
-                graph=self.graph_,
-                root=node_id,
-                targets=[y[idx] for idx in nnz_rows],
-            )
+        y_rolled_up = rollup_nodes(
+            graph=self.graph_,
+            source=node_id,
+            targets=[y[idx] for idx in nnz_rows],
         )
+
+        label_binarizer = None
+        if self.is_tree_:
+            y_rolled_up = flatten_list(y_rolled_up)
+            # label_binarizer = LabelBinarizer()
+            Y = y_rolled_up
+        else:
+            label_binarizer = MultiLabelBinarizer()
+            Y = label_binarizer.fit_transform(y_rolled_up)
 
         self.logger.debug(
-            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(unique(y)): %s",
+            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, n_targets: %s",
             node_id,
             X.shape,
-            len(np.unique(y)),
+            len(np.unique(Y)),
         )
 
-        if len(set(y)) == 0:
+        if X.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
@@ -361,20 +366,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 node_id,
             )
             return
-        elif len(set(y)) == 1:
+        elif len(np.unique(Y)) == 1:
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            nnz_target_row = Y[0]
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
-                y[0],
+                nnz_target_row,
             )
-            clf = DummyClassifier(strategy="constant", constant=y[0])
+            clf = DummyClassifier(strategy="constant", constant=nnz_target_row)
         else:
             clf = self._base_estimator_for(node_id)
 
-        clf.fit(X=X, y=y)
+        clf.fit(X=X, y=Y)
         self.graph_.node[node_id][CLASSIFIER] = clf
+        self.graph_.node[node_id]["LABEL_BINARIZER"] = label_binarizer
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
         if self.graph_.node[node_id].get(CLASSIFIER, None):
@@ -409,26 +416,33 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 progress=progress,
             )
 
-    def _recursive_predict(self, X, root):
+    def _recursive_predict(self, x, root):
         clf = self.graph_.node[root][CLASSIFIER]
+        label_binarizer = self.graph_.node[root]["LABEL_BINARIZER"]
         path = [root]
         path_proba = []
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            probs = clf.predict_proba(X)[0]
+            probs = clf.predict_proba(x)[0]
             argmax = np.argmax(probs)
-            prediction = clf.classes_[argmax]
+            if label_binarizer:
+                prediction = label_binarizer.classes_[argmax]
+            else:
+                prediction = clf.classes_[argmax]
             score = probs[argmax]
             path_proba.append(score)
-
-            if score < max(path_proba):
-                score = np.mean([max(path_proba), score])
-                probs[argmax] = score
+            # if score < max(path_proba):
+            #     score = np.mean([max(path_proba), score])
+            #     probs[argmax] = score
 
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
-                class_idx = self.classes_.index(class_)
+                if label_binarizer:
+                    mapped_class = label_binarizer.classes_[class_]
+                else:
+                    mapped_class = clf.classes_[local_class_idx]
+                class_idx = self.classes_.index(mapped_class)
                 class_proba[class_idx] = probs[local_class_idx]
 
             if self._should_early_terminate(
@@ -442,6 +456,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             path.append(prediction)
 
             clf = self.graph_.node[prediction].get(CLASSIFIER, None)
+            label_binarizer = self.graph_.node[prediction].get("LABEL_BINARIZER", None)
 
         return path, class_proba
 
@@ -481,23 +496,26 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return False
 
     def _base_estimator_for(self, node_id):
+        base_estimator = None
         if not self.base_estimator:
             # No base estimator specified by user, try to pick best one
-            return self._make_base_estimator(node_id)
-
-        if isinstance(self.base_estimator, dict):
+            base_estimator = self._make_base_estimator(node_id)
+        elif isinstance(self.base_estimator, dict):
             # user provided dictionary mapping nodes to estimators
             if node_id in self.base_estimator:
-                return clone(self.base_estimator[node_id])
+                base_estimator = self.base_estimator[node_id]
             else:
-                return clone(self.base_estimator[DEFAULT])
-
-        if is_estimator(self.base_estimator):
+                base_estimator = self.base_estimator[DEFAULT]
+        elif is_estimator(self.base_estimator):
             # single base estimator object, return a copy
-            return clone(self.base_estimator)
+            base_estimator = self.base_estimator
+        else:
+            # By default, treat as callable factory
+            base_estimator = self.base_estimator(node_id=node_id, graph=self.graph_)
 
-        # By default, treat as callable factory
-        return self.base_estimator(node_id=node_id, graph=self.graph_)
+        return OneVsRestClassifier(
+            clone(base_estimator),
+        )
 
     def _make_base_estimator(self, node_id):
         return LogisticRegression()

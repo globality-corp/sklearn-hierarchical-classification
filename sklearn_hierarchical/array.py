@@ -1,6 +1,14 @@
-"""Helpers for workings with (numpy) arrays."""
+"""Helpers for workings with sequences and (numpy) arrays."""
 import numpy as np
 from scipy.sparse import issparse
+
+
+def flatten_list(lst):
+    return [
+        item
+        for sublist in lst
+        for item in sublist
+    ]
 
 
 def apply_along_rows(func, X):
@@ -24,8 +32,10 @@ def apply_along_rows(func, X):
 
 
 def nnz_rows_ix(X):
-    """
-    Return row indices which have at least one non-zero column value.
-
-    """
+    """Return row indices which have at least one non-zero column value."""
     return np.unique(X.nonzero()[0])
+
+
+def nnz_columns_count(X):
+    """Return count of columns which have at least one non-zero value."""
+    return len(np.count_nonzero(X, axis=0))

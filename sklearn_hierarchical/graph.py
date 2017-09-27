@@ -2,7 +2,6 @@
 Graph processing helpers.
 
 """
-import logging
 from collections import defaultdict
 
 from networkx import all_simple_paths
@@ -10,7 +9,7 @@ from networkx import all_simple_paths
 
 def make_flat_hierarchy(targets, root):
     """
-    Create a trivial "flat" hiearchy, linking all given targets to an artificial ROOT node.
+    Create a trivial (flat) hiearchy, linking all given targets to given root node.
 
     """
     adjacency = defaultdict(list)
@@ -19,35 +18,19 @@ def make_flat_hierarchy(targets, root):
     return adjacency
 
 
-def rollup_nodes(graph, root, targets):
+def rollup_nodes(graph, source, targets):
     """
     Perform a "roll-up" of given target nodes up to the nodes immediately below
-    given root node in given graph.
+    given source node in given graph.
 
     """
     resultset = []
     for node_id in targets:
-        all_paths = all_simple_paths(G=graph, source=root, target=node_id)
-        # XXX need to generalize training logic to support DAG - rolling up
-        # a rolled up node may result in multiple nodes, e.g rolling up D to A:
-        #
-        #        B
-        #      /   \
-        #    A - C - D
-        #
-        # for path in all_paths:
-        #    resultset.append(path[1])
-        try:
-            resultset.append(next(all_paths)[1])
-        except StopIteration:
-            logging.error(
-                "Could not find path from root='{}' to node_id='{}', targets: {}".format(
-                    root,
-                    node_id,
-                    targets,
-                ),
-            )
-            raise
+        all_paths = all_simple_paths(G=graph, source=source, target=node_id)
+        resultset.append([
+            path[1]
+            for path in all_paths
+        ])
 
     assert len(resultset) == len(targets)
 

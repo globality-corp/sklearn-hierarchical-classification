@@ -10,6 +10,7 @@ ROOT = -1
 # Dictionary keys used in various places by classifier
 CLASSIFIER = "classifier"
 DEFAULT = "default"
+METAFEATURES = "metafeatures"
 
 # Enumeration of valid configuration types
 VALID_ALGORITHM = ("lcn", "lcpn")
