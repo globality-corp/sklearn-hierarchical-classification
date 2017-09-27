@@ -14,7 +14,7 @@ from sklearn.utils.validation import check_array, check_consistent_length, check
 from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
-from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_rows_ix
+from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_columns_count, nnz_rows_ix
 from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, LABEL_BINARIZER, METAFEATURES, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.dummy import DummyProgress
@@ -343,20 +343,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
         label_binarizer = None
+        num_targets = None
         if self.is_tree_:
             y_rolled_up = flatten_list(y_rolled_up)
             Y = y_rolled_up
+            num_targets = len(np.unique(Y))
         else:
             label_binarizer = MultiLabelBinarizer()
             Y = label_binarizer.fit_transform(y_rolled_up)
+            num_targets = nnz_columns_count(Y)
 
         self.logger.debug(
             "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, n_targets: %s",
             node_id,
             X.shape,
-            len(np.unique(Y)),
+            num_targets,
         )
-
         if X.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
@@ -365,7 +367,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 node_id,
             )
             return
-        elif len(np.unique(Y)) == 1:
+        elif num_targets == 1:
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             nnz_target_row = Y[0]
@@ -379,8 +381,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = self._base_estimator_for(node_id)
 
         clf.fit(X=X, y=Y)
-        self.graph_.node[node_id][CLASSIFIER] = clf
         self.graph_.node[node_id][LABEL_BINARIZER] = label_binarizer
+        self.graph_.node[node_id][CLASSIFIER] = clf
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
         if self.graph_.node[node_id].get(CLASSIFIER, None):
@@ -391,23 +393,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self._train_local_classifier(X, y, node_id)
 
         for child_node_id in self.graph_.successors(node_id):
-            out_degree = self.graph_.out_degree(child_node_id)
-            if not out_degree:
-                # Leaf node, skip
-                progress.update(1)
-                continue
-
-            if out_degree < 2:
-                # If node has less than 2 children, no point training a local classifier
-                self.logger.warning(
-                    "*** Not enough children to train classifier for node %s, skipping (%s < 2)",
-                    child_node_id,
-                    self.graph_.out_degree(child_node_id),
-                )
-                # For tracking progress, count this node as well as all of its descendants
-                progress.update(1 + len(list(dfs_edges(self.graph_, child_node_id))))
-                continue
-
             self._recursive_train_local_classifiers(
                 X=X,
                 y=y,
@@ -438,7 +423,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
                 if label_binarizer:
-                    mapped_class = label_binarizer.classes_[class_]
+                    try:
+                        mapped_class = label_binarizer.classes_[class_]
+                    except:
+                        self.logger.error(
+                            "Couldnt map class. class_: %s, node_id: %s, label_binarizer.classes_: %s",
+                            class_, path[-1], label_binarizer.classes_)
+                        raise
                 else:
                     mapped_class = clf.classes_[local_class_idx]
                 class_idx = self.classes_.index(mapped_class)
