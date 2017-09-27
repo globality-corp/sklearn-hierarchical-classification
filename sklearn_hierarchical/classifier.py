@@ -16,7 +16,7 @@ from sklearn_hierarchical.array import apply_along_rows, nnz_rows_ix
 from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.dummy import DummyProgress
-from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes, root_nodes
+from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes
 from sklearn_hierarchical.validation import is_estimator, validate_parameters
 
 
@@ -101,6 +101,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         the current node or continue. The function should return True if classification should continue,
         or False if classification should stop at current node.
 
+    root : integer, string
+        The unique identifier for the qualified root node in the class hierarchy. The hierarchical classifier
+        assumes that the given class hierarchy graph is a rooted DAG, e.g has a single designated root node
+        of in-degree 0. This node is associated with a special identifier which defaults to a framework provided one,
+        but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there's no need
+        for injecting an artifical root node.
+
     interactive : bool
         If set to True, functionality which is useful for interactive usage (e.g in a Jupyter notebook) will be
         enabled. Specifically, fitting the model will display progress bars (via tqdm) where appropriate, and more
@@ -120,13 +127,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     """
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 interactive=False):
+                 root=ROOT, interactive=False):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
         self.algorithm = algorithm
         self.training_strategy = training_strategy
         self.stopping_criteria = stopping_criteria
+        self.root = root
         self.interactive = interactive
 
     def fit(self, X, y=None, sample_weight=None):
@@ -158,24 +166,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self._check_parameters()
 
         # Initialize NetworkX Graph from input class hierarchy
-        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)), root=ROOT)
+        self.class_hierarchy_ = self.class_hierarchy or make_flat_hierarchy(list(np.unique(y)), root=self.root)
         self.graph_ = DiGraph(self.class_hierarchy_)
         self.classes_ = list(
             node
             for node in self.graph_.nodes()
-            if node != ROOT
+            if node != self.root
         )
 
         # Recursively build training feature sets for each node in graph
         # based on the passed in "global" feature set
         with self._progress(total=self.n_classes_, desc="Building features") as progress:
-            for node_id in root_nodes(self.graph_):
-                self._recursive_build_features(X, y, node_id=node_id, progress=progress)
+            self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
         # Recursively train base classifiers
         with self._progress(total=self.n_classes_, desc="Training base classifiers") as progress:
-            for node_id in root_nodes(self.graph_):
-                self._recursive_train_local_classifiers(X, y, node_id=node_id, progress=progress)
+            self._recursive_train_local_classifiers(X, y, node_id=self.root, progress=progress)
 
         return self
 
@@ -194,13 +200,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse='csr')
+        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
             y_pred = []
-            for node_id in root_nodes(self.graph_):
-                path, scores = self._recursive_predict(x, node_id=node_id)
-                y_pred.append(path[-1])
+            path, scores = self._recursive_predict(x, root=self.root)
+            y_pred.append(path[-1])
             # TODO support multi-label / paths?
             return y_pred[0]
 
@@ -228,9 +233,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         def _classify(x):
             y_pred = []
-            for node_id in root_nodes(self.graph_):
-                path, class_probabilities = self._recursive_predict(x, node_id=node_id)
-                y_pred.append((path[-1], class_probabilities))
+            path, scores = self._recursive_predict(x, root=self.root)
+            y_pred.append((path[-1], scores))
             # TODO support multi-label / paths?
             return y_pred[0][1]
 
@@ -300,23 +304,23 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         Parameters
         ----------
-        X : (sparse) array-like, shape = [num_samples, num_features]
+        X : (sparse) array-like, shape = [n_samples, n_features]
             The training data matrix at current node.
 
         Returns
         -------
         metafeatures : dict
             Python dictionary of meta-features. The following meta-features are computed by default:
-            * 'num_samples' - Number of samples used to train classifier at given node.
-            * 'num_targets' - Number of targets (classes) to classify into at given node.
+            * 'n_samples' - Number of samples used to train classifier at given node.
+            * 'n_targets' - Number of targets (classes) to classify into at given node.
 
         """
         # Indices of non-zero rows in X, i.e rows corresponding to relevant samples for this node.
         ix = nnz_rows_ix(X)
 
         return dict(
-            num_samples=len(ix),
-            num_targets=len(np.unique(y[ix])),
+            n_samples=len(ix),
+            n_targets=len(np.unique(y[ix])),
         )
 
     def _train_local_classifier(self, X, y, node_id):
@@ -405,22 +409,27 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 progress=progress,
             )
 
-    def _recursive_predict(self, X, node_id):
-        clf = self.graph_.node[node_id][CLASSIFIER]
-        path = [node_id]
-        path_probability = 1.0
-        class_probabilities = np.zeros_like(self.classes_, dtype=np.float64)
+    def _recursive_predict(self, X, root):
+        clf = self.graph_.node[root][CLASSIFIER]
+        path = [root]
+        path_proba = []
+        class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
             probs = clf.predict_proba(X)[0]
             argmax = np.argmax(probs)
             prediction = clf.classes_[argmax]
             score = probs[argmax]
+            path_proba.append(score)
+
+            if score < max(path_proba):
+                score = np.mean([max(path_proba), score])
+                probs[argmax] = score
 
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
                 class_idx = self.classes_.index(class_)
-                class_probabilities[class_idx] = probs[local_class_idx]
+                class_proba[class_idx] = probs[local_class_idx]
 
             if self._should_early_terminate(
                 current_node=path[-1],
@@ -430,12 +439,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 break
 
             # Update current path
-            path_probability *= score
             path.append(prediction)
 
             clf = self.graph_.node[prediction].get(CLASSIFIER, None)
 
-        return path, class_probabilities
+        return path, class_proba
 
     def _should_early_terminate(self, current_node, prediction, score):
         """
@@ -451,7 +459,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if (
             isinstance(self.stopping_criteria, float)
-            and current_node != ROOT
+            and current_node != self.root
             and score < self.stopping_criteria
         ):
             self.logger.debug(
@@ -472,9 +480,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         # Shouldn't really ever get here
         return False
 
-    def _make_base_estimator(self, node_id):
-        return LogisticRegression()
-
     def _base_estimator_for(self, node_id):
         if not self.base_estimator:
             # No base estimator specified by user, try to pick best one
@@ -492,7 +497,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return clone(self.base_estimator)
 
         # By default, treat as callable factory
-        self.base_estimator(node_id=node_id, graph=self.graph_)
+        return self.base_estimator(node_id=node_id, graph=self.graph_)
+
+    def _make_base_estimator(self, node_id):
+        return LogisticRegression()
 
     def _progress(self, total, desc, **kwargs):
         if self.interactive:

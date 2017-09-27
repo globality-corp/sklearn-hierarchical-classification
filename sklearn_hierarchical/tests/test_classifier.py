@@ -90,8 +90,8 @@ def test_fitted_attributes():
         clf.graph_.nodes[ROOT],
         has_entries(
             metafeatures=has_entries(
-                num_samples=X.shape[0],
-                num_targets=n_classes,
+                n_samples=X.shape[0],
+                n_targets=n_classes,
             ),
         ),
     )
