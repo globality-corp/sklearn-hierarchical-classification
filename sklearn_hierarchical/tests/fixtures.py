@@ -5,48 +5,11 @@ Unit-test fixtures and factory methods.
 from itertools import product
 
 import numpy as np
-from networkx import DiGraph, gn_graph, path_graph, to_dict_of_lists
+from networkx import DiGraph, gn_graph, to_dict_of_lists
 from sklearn.datasets import load_digits, make_blobs
 
 from sklearn_hierarchical.classifier import HierarchicalClassifier
 from sklearn_hierarchical.constants import ROOT
-
-
-METRICS_TEST_CASES = [
-    # G (directed): 0 -> 1 -> 2 -> 3
-    # y_true:
-    #
-    #    [0, 1, 0, 0]
-    #    [0, 1, 1, 0]
-    #    [0, 0, 0, 1]
-    #
-    # y_pred:
-    #
-    #    [0, 1, 0, 0]
-    #    [1, 1, 0, 0]
-    #    [0, 1, 0, 0]
-    #
-    # Expected hR: 6 / 9 = 0.666
-    # Expected hP: 6 / 6 = 1.0
-    # Expected hF1: 6 / 6 = 1.0
-    (path_graph(4, create_using=DiGraph()), (3, 4), ([0, 1, 1, 2], [1, 1, 2, 3]), ([0, 1, 1, 2], [1, 0, 1, 1]), 0.6666, 1.0, 0.8),  # noqa:E501
-    # G (directed): 0 -> 1 -> 2 -> 3
-    # y_true:
-    #
-    #    [0, 1, 0, 0]
-    #    [0, 1, 1, 0]
-    #    [1, 0, 0, 0]
-    #
-    # y_pred:
-    #
-    #    [0, 1, 0, 0]
-    #    [1, 1, 0, 0]
-    #    [0, 0, 0, 1]
-    #
-    # Expected hR: 5 / 6 = 0.8333
-    # Expected hP: 5 / 8 = 0.625
-    (path_graph(4, create_using=DiGraph()), (3, 4), ([0, 1, 1, 2], [1, 1, 2, 0]), ([0, 1, 1, 2], [1, 0, 1, 3]), 0.8333, 0.625, 0.7142),  # noqa:E501
-]
 
 
 def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
