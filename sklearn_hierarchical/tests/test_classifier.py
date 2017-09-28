@@ -188,7 +188,7 @@ def test_nmlnp_strategy_with_float_stopping_criteria():
 
 def test_nmlnp_strategy_on_tree_with_dummy_classifier():
     """Test classification works on a tree graph when one of the nodes has out-degree 1 resulting in
-    creation of a "dummy" classifier at that node to triially predict its child.
+    creation of a "dummy" classifier at that node to trivially predict its child.
     """
     # since NMLNP results in a mix of intermediate and lefa nodes,
     # make sure they are all of same dtype (str)
@@ -225,16 +225,23 @@ def test_nmlnp_strategy_on_tree_with_dummy_classifier():
 
 
 def test_nmlnp_strategy_on_dag_with_dummy_classifier():
-    """Test classification works on a DAG when one of the nodes has out-degree 1 resulting in
+    """Test classification works on a "deep" DAG when one of the nodes has out-degree 1 resulting in
     creation of a "dummy" classifier at that node to triially predict its child.
+
+    This test case actually tests a few more subtle edge cases:
+
+    - String-based target labels with length > 1
+    - Multi-level degenerate sub-graphs, e.g some nodes having a sub-graph which is a path.
+
     """
     # since NMLNP results in a mix of intermediate and lefa nodes,
     # make sure they are all of same dtype (str)
     class_hierarchy = {
         ROOT: ["A", "B", "C"],
         "A": ["1", "5", "6", "7"],
-        "B": ["2", "3a", "8", "9"],
-        "C": ["3a"],
+        "B": ["2", "BC.1", "8", "9"],
+        "BC.1": ["3a"],
+        "C": ["BC.1"],
     }
     base_estimator = svm.SVC(
         gamma=0.001,

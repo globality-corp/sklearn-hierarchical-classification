@@ -320,6 +320,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             n_targets=len(np.unique(y[ix])),
         )
 
+    def _recursive_train_local_classifiers(self, X, y, node_id, progress):
+        if CLASSIFIER in self.graph_.node[node_id]:
+            # Already trained classifier at this node, skip
+            return
+
+        progress.update(1)
+        self._train_local_classifier(X, y, node_id)
+
+        for child_node_id in self.graph_.successors(node_id):
+            self._recursive_train_local_classifiers(
+                X=X,
+                y=y,
+                node_id=child_node_id,
+                progress=progress,
+            )
+
     def _train_local_classifier(self, X, y, node_id):
         if self.graph_.out_degree(node_id) == 0:
             # Leaf node
@@ -351,6 +367,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             label_binarizer = MultiLabelBinarizer()
             Y = label_binarizer.fit_transform(y_rolled_up)
             num_targets = nnz_columns_count(Y)
+            self.logger.debug(
+                "_train_local_classifier() y_rolled_up: %s, Y: %s, num_targets: %s, label_binarizer.classes_: %s",
+                y_rolled_up[:10],
+                Y[:10],
+                num_targets,
+                label_binarizer.classes_,
+            )
 
         self.logger.debug(
             "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, n_targets: %s",
@@ -371,8 +394,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             constant = y_rolled_up[0] if self.is_tree_ else y_rolled_up[0][0]
 
-            self.logger.warning(
-                "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
+            self.logger.debug(
+                "_train_local_classifier() - only a single target (child node) available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
                 constant,
             )
@@ -391,22 +414,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.graph_.node[node_id][LABEL_BINARIZER] = label_binarizer
         self.graph_.node[node_id][CLASSIFIER] = clf
 
-    def _recursive_train_local_classifiers(self, X, y, node_id, progress):
-        if self.graph_.node[node_id].get(CLASSIFIER, None):
-            # Already encountered and trained classifier at this node, no-op
-            return
-
-        progress.update(1)
-        self._train_local_classifier(X, y, node_id)
-
-        for child_node_id in self.graph_.successors(node_id):
-            self._recursive_train_local_classifiers(
-                X=X,
-                y=y,
-                node_id=child_node_id,
-                progress=progress,
-            )
-
     def _recursive_predict(self, x, root):
         clf = self.graph_.node[root][CLASSIFIER]
         label_binarizer = self.graph_.node[root].get(LABEL_BINARIZER, None)
@@ -424,17 +431,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             #     probs[argmax] = score
 
             # Report probabilities in terms of complete class hierarchy
+            classes = clf.classes_ if isinstance(clf.classes_, list) else clf.classes_.tolist()
             for local_class_idx, class_ in enumerate(clf.classes_):
                 if label_binarizer:
                     try:
-                        mapped_class = label_binarizer.classes_[class_]
+                        mapped_class = label_binarizer.classes_[classes.index(class_)]
                     except:
                         self.logger.error(
-                            "Couldnt map class. clf: %s, clf.classes_: %s, class_: %s, node_id: %s, label_binarizer.classes_: %s",  # noqa:E501
-                            clf.__class__.__name__, clf.classes_, class_, path[-1], label_binarizer.classes)
+                            "_recursive_predict() - Couldnt map class. node_id: %s, clf: %s, clf.classes_: %s, class_: %s, label_binarizer.classes_: %s",  # noqa:E501
+                            path[-1], clf.__class__.__name__, clf.classes_, class_, label_binarizer.classes_)
                         raise
                 else:
                     mapped_class = clf.classes_[local_class_idx]
+
                 class_idx = self.classes_.index(mapped_class)
                 class_proba[class_idx] = probs[local_class_idx]
                 if local_class_idx == argmax:
