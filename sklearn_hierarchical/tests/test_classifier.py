@@ -2,6 +2,7 @@
 Unit-tests for the classifier interface.
 
 """
+import numpy as np
 from hamcrest import (
     assert_that,
     close_to,
@@ -232,8 +233,8 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     class_hierarchy = {
         ROOT: ["A", "B", "C"],
         "A": ["1", "5", "6", "7"],
-        "B": ["2", "3", "8", "9"],
-        "C": ["3"],
+        "B": ["2", "3a", "8", "9"],
+        "C": ["3a"],
     }
     base_estimator = svm.SVC(
         gamma=0.001,
@@ -248,6 +249,7 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     )
 
     X, y = make_digits_dataset()
+    y[np.where(y == "3")] = "3a"
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
@@ -258,4 +260,4 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
 
-    assert_that(list(y_pred), has_item("3"))
+    assert_that(list(y_pred), has_item("3a"))

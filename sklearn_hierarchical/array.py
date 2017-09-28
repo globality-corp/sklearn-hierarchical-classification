@@ -24,7 +24,10 @@ def apply_along_rows(func, X):
             for i in range(X.shape[0])
         ])
     else:
-        return np.apply_along_axis(
+        # XXX might break vis-a-vis this issue merging: https://github.com/numpy/numpy/pull/8511
+        # See discussion over issue with truncated string when using np.apply_along_axis here:
+        #   https://github.com/numpy/numpy/issues/8352
+        return np.ma.apply_along_axis(
             lambda x: func(x.reshape(1, -1)),
             axis=1,
             arr=X,

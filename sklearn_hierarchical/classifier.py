@@ -207,11 +207,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         def _classify(x):
             # TODO support multi-label / paths
-            path, scores = self._recursive_predict(x, root=self.root)
+            path, _ = self._recursive_predict(x, root=self.root)
             return path[-1]
 
         y_pred = apply_along_rows(_classify, X=X)
-
         return y_pred
 
     def predict_proba(self, X):
@@ -371,20 +370,24 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             constant = y_rolled_up[0] if self.is_tree_ else y_rolled_up[0][0]
-            if label_binarizer:
-                constant = label_binarizer.transform(constant)
 
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
                 constant,
             )
+
+            if label_binarizer:
+                # If this is a DAG, we have a multilabel scenario,
+                # use the multi label binarizer it to transform constant for
+                # dummy classifier.
+                constant = label_binarizer.transform([set([constant])])
+
             clf = DummyClassifier(strategy="constant", constant=constant)
         else:
             clf = self._base_estimator_for(node_id)
 
         clf.fit(X=X, y=Y)
-
         self.graph_.node[node_id][LABEL_BINARIZER] = label_binarizer
         self.graph_.node[node_id][CLASSIFIER] = clf
 
@@ -414,10 +417,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         while clf:
             probs = clf.predict_proba(x)[0]
             argmax = np.argmax(probs)
-            if label_binarizer:
-                prediction = label_binarizer.classes_[argmax]
-            else:
-                prediction = clf.classes_[argmax]
             score = probs[argmax]
             path_proba.append(score)
             # if score < max(path_proba):
@@ -431,13 +430,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                         mapped_class = label_binarizer.classes_[class_]
                     except:
                         self.logger.error(
-                            "Couldnt map class. clf: %s, class_: %s, node_id: %s, label_binarizer.classes_: %s",
-                            clf.__class__.__name__, class_, path[-1], label_binarizer.classes_)
+                            "Couldnt map class. clf: %s, clf.classes_: %s, class_: %s, node_id: %s, label_binarizer.classes_: %s",  # noqa:E501
+                            clf.__class__.__name__, clf.classes_, class_, path[-1], label_binarizer.classes)
                         raise
                 else:
                     mapped_class = clf.classes_[local_class_idx]
                 class_idx = self.classes_.index(mapped_class)
                 class_proba[class_idx] = probs[local_class_idx]
+                if local_class_idx == argmax:
+                    prediction = mapped_class
 
             if self._should_early_terminate(
                 current_node=path[-1],
@@ -468,9 +469,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if (
             isinstance(self.stopping_criteria, float)
-            and current_node != self.root
             and score < self.stopping_criteria
         ):
+            if current_node == self.root:
+                return False
+
             self.logger.debug(
                 "_should_early_terminate() - score %s < %s, terminating at node %s",
                 score,
@@ -486,7 +489,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 score=score,
             )
 
-        # Shouldn't really ever get here
         return False
 
     def _base_estimator_for(self, node_id):
@@ -494,15 +496,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         if not self.base_estimator:
             # No base estimator specified by user, try to pick best one
             base_estimator = self._make_base_estimator(node_id)
+
         elif isinstance(self.base_estimator, dict):
-            # user provided dictionary mapping nodes to estimators
+            # User provided dictionary mapping nodes to estimators
             if node_id in self.base_estimator:
                 base_estimator = self.base_estimator[node_id]
             else:
                 base_estimator = self.base_estimator[DEFAULT]
+
         elif is_estimator(self.base_estimator):
-            # single base estimator object, return a copy
+            # Single base estimator object, return a copy
             base_estimator = self.base_estimator
+
         else:
             # By default, treat as callable factory
             base_estimator = self.base_estimator(node_id=node_id, graph=self.graph_)
