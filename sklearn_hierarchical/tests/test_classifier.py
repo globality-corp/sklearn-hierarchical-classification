@@ -185,8 +185,8 @@ def test_nmlnp_strategy_with_float_stopping_criteria():
     assert_that(list(y_pred), has_item("B"))
 
 
-def test_nmlnp_strategy_with_dummy_classifier():
-    """Test classification works when one of the nodes has out-degree 1 resulting in
+def test_nmlnp_strategy_on_tree_with_dummy_classifier():
+    """Test classification works on a tree graph when one of the nodes has out-degree 1 resulting in
     creation of a "dummy" classifier at that node to triially predict its child.
     """
     # since NMLNP results in a mix of intermediate and lefa nodes,
@@ -221,3 +221,41 @@ def test_nmlnp_strategy_with_dummy_classifier():
     y_pred = clf.predict(X_test)
 
     assert_that(list(y_pred), has_item("4"))
+
+
+def test_nmlnp_strategy_on_dag_with_dummy_classifier():
+    """Test classification works on a DAG when one of the nodes has out-degree 1 resulting in
+    creation of a "dummy" classifier at that node to triially predict its child.
+    """
+    # since NMLNP results in a mix of intermediate and lefa nodes,
+    # make sure they are all of same dtype (str)
+    class_hierarchy = {
+        ROOT: ["A", "B", "C"],
+        "A": ["1", "5", "6", "7"],
+        "B": ["2", "3", "8", "9"],
+        "C": ["3"],
+    }
+    base_estimator = svm.SVC(
+        gamma=0.001,
+        kernel="rbf",
+        probability=True
+    )
+    clf = make_classifier(
+        base_estimator=base_estimator,
+        class_hierarchy=class_hierarchy,
+        prediction_depth="nmlnp",
+        stopping_criteria=0.9,
+    )
+
+    X, y = make_digits_dataset()
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=RANDOM_STATE,
+    )
+
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict(X_test)
+
+    assert_that(list(y_pred), has_item("3"))

@@ -371,6 +371,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             constant = y_rolled_up[0] if self.is_tree_ else y_rolled_up[0][0]
+            if label_binarizer:
+                constant = label_binarizer.transform(constant)
+
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
@@ -381,6 +384,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = self._base_estimator_for(node_id)
 
         clf.fit(X=X, y=Y)
+
         self.graph_.node[node_id][LABEL_BINARIZER] = label_binarizer
         self.graph_.node[node_id][CLASSIFIER] = clf
 
