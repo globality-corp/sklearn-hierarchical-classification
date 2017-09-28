@@ -2,7 +2,6 @@
 Unit-tests for the classifier interface.
 
 """
-import numpy as np
 from hamcrest import (
     assert_that,
     close_to,
@@ -13,6 +12,7 @@ from hamcrest import (
     is_,
 )
 from networkx import DiGraph
+from numpy import where
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -249,7 +249,7 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     )
 
     X, y = make_digits_dataset()
-    y[np.where(y == "3")] = "3a"
+    y[where(y == "3")] = "3a"
     X_train, X_test, y_train, y_test = train_test_split(
         X,
         y,
