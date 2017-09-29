@@ -188,8 +188,7 @@ def test_nmlnp_strategy_with_float_stopping_criteria():
 
 def test_nmlnp_strategy_on_tree_with_dummy_classifier():
     """Test classification works on a tree graph when one of the nodes has out-degree 1 resulting in
-    creation of a "dummy" classifier at that node to trivially predict its child.
-    """
+    creation of a "dummy" classifier at that node to trivially predict its child."""
     # since NMLNP results in a mix of intermediate and lefa nodes,
     # make sure they are all of same dtype (str)
     class_hierarchy = {
