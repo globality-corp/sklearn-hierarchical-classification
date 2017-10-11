@@ -12,7 +12,7 @@ from sklearn.utils.validation import check_array, check_consistent_length, check
 from sklearn.utils.multiclass import check_classification_targets
 from tqdm import tqdm_notebook
 
-from sklearn_hierarchical.array import apply_along_rows, flatten_list, nnz_rows_ix
+from sklearn_hierarchical.array import apply_along_rows, apply_rollup_Xy, flatten_list, nnz_rows_ix
 from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
 from sklearn_hierarchical.decorators import logger
 from sklearn_hierarchical.dummy import DummyProgress
@@ -367,7 +367,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         X = self.graph_.node[node_id]["X"]
         nnz_rows = nnz_rows_ix(X)
-        X = X[nnz_rows, :]
+        X_ = X[nnz_rows, :]
 
         y_rolled_up = rollup_nodes(
             graph=self.graph_,
@@ -376,36 +376,33 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
         if self.is_tree_:
-            Y = flatten_list(y_rolled_up)
+            y_ = flatten_list(y_rolled_up)
         else:
             # Class hierarchy graph is a DAG
-            Y = [
-                y_labels[0]
-                for y_labels in y_rolled_up
-            ]
+            X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
 
-        num_targets = len(np.unique(Y))
+        num_targets = len(np.unique(y_))
 
         self.logger.debug(
-            "_train_local_classifier() - Training local classifier for node: %s, X.shape: %s, len(Y): %s, n_targets: %s",  # noqa:E501
+            "_train_local_classifier() - Training local classifier for node: %s, X_.shape: %s, len(y): %s, n_targets: %s",  # noqa:E501
             node_id,
-            X.shape,
-            len(Y),
+            X_.shape,
+            len(y_),
             num_targets,
         )
 
-        if X.shape[0] == 0:
+        if X_.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
-                "_train_local_classifier() - not enough training data available to train classifier, classification in branch will terminate at node %s",  # noqa:E501
+                "_train_local_classifier() - not enough training data available to train, classification in branch will terminate at node %s",  # noqa:E501
                 node_id,
             )
             return
         elif num_targets == 1:
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
-            constant = Y[0]
+            constant = y_[0]
             self.logger.debug(
                 "_train_local_classifier() - only a single target (child node) available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
@@ -416,7 +413,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        clf.fit(X=X, y=Y)
+        clf.fit(X=X_, y=y_)
         self.graph_.node[node_id][CLASSIFIER] = clf
 
     def _recursive_predict(self, x, root):
