@@ -10,7 +10,6 @@ ROOT = -1
 # Dictionary keys used in various places by classifier
 CLASSIFIER = "classifier"
 DEFAULT = "default"
-LABEL_BINARIZER = "label_binarizer"
 METAFEATURES = "metafeatures"
 
 # Enumeration of valid configuration types
