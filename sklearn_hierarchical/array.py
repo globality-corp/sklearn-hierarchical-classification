@@ -1,6 +1,6 @@
 """Helpers for workings with sequences and (numpy) arrays."""
 import numpy as np
-from scipy.sparse import issparse
+from scipy.sparse import issparse, lil_matrix
 
 
 def flatten_list(lst):
@@ -32,6 +32,41 @@ def apply_along_rows(func, X):
             axis=1,
             arr=X,
         )
+
+
+def apply_rollup_Xy(X, y):
+    """
+    Parameters
+    ----------
+    X : (sparse) array-like, shape = [n_samples, n_features]
+        Data.
+
+    y : list-of-lists - [n_samples]
+        For each sample, y maintains list of labels this sample should be used for in training.
+
+    Returns
+    -------
+    X_, y_
+        Transformed by 'flattening' out y parameter and duplicating corresponding rows in X
+
+    """
+    # Compute number of rows we will have after transformation
+    n_rows = sum(len(labelset) for labelset in y)
+
+    if n_rows == X.shape[0]:
+        # No expansion needed
+        return X, flatten_list(y)
+
+    X_ = lil_matrix((n_rows, X.shape[1]), dtype=X.dtype)
+    offset = 0
+    for i, labelset in enumerate(y):
+        labelset_sz = len(labelset)
+        for j in range(labelset_sz):
+            X_[offset+j] = X[i]
+        offset += labelset_sz
+    y_ = flatten_list(y)
+
+    return X_.tocsr(), y_
 
 
 def nnz_rows_ix(X):

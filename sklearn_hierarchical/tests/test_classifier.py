@@ -102,9 +102,9 @@ def test_base_estimator_as_dict():
 
     clf.fit(X_train, y_train)
 
-    assert_that(isinstance(clf.graph_.nodes[ROOT][CLASSIFIER].estimators_[0], KNeighborsClassifier))
-    assert_that(isinstance(clf.graph_.nodes["B"][CLASSIFIER].estimators_[0], svm.SVC))
-    assert_that(isinstance(clf.graph_.nodes["A"][CLASSIFIER].estimators_[0], MultinomialNB))
+    assert_that(isinstance(clf.graph_.nodes[ROOT][CLASSIFIER], KNeighborsClassifier))
+    assert_that(isinstance(clf.graph_.nodes["B"][CLASSIFIER], svm.SVC))
+    assert_that(isinstance(clf.graph_.nodes["A"][CLASSIFIER], MultinomialNB))
 
 
 def test_nontrivial_hierarchy_leaf_classification():
