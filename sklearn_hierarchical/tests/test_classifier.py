@@ -153,7 +153,7 @@ def test_nontrivial_hierarchy_leaf_classification():
 
 
 def test_nmlnp_strategy_with_float_stopping_criteria():
-    # since NMLNP results in a mix of intermediate and lefa nodes,
+    # since NMLNP results in a mix of intermediate and leaf nodes,
     # make sure they are all of same dtype (str)
     class_hierarchy = {
         ROOT: ["A", "B"],

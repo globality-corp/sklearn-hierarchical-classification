@@ -178,12 +178,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
         # Recursively build training feature sets for each node in graph
-        # based on the passed in "global" feature set
-        with self._progress(total=self.n_classes_, desc="Building features") as progress:
+        with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
             self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
         # Recursively train base classifiers
-        with self._progress(total=self.n_classes_, desc="Training base classifiers") as progress:
+        with self._progress(total=self.n_classes_ + 1, desc="Training base classifiers") as progress:
             self._recursive_train_local_classifiers(X, y, node_id=self.root, progress=progress)
 
         return self
@@ -206,7 +205,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
-            # TODO support multi-label / paths
+            # TODO support multi-label / paths?
             path, _ = self._recursive_predict(x, root=self.root)
             return path[-1]
 
@@ -247,6 +246,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         validate_parameters(self)
 
     def _recursive_build_features(self, X, y, node_id, progress):
+        """
+        Build the training feature matrix X recursively, for each node.
+
+        By default we use "hierarchical feature set" (terminology per Ceci and Malerba 2007)
+        which builds up features at each node in the hiearchy by "rolling up" training examples
+        defined on the the leaf nodes (classes) of the hierarchy into the parent classes relevant
+        for classification at a particular non-leaf node.
+
+        """
         if "X" in self.graph_.node[node_id]:
             # Already visited this node in feature building phase
             return self.graph_.node[node_id]["X"]
@@ -360,10 +368,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         label_binarizer = None
         num_targets = None
         if self.is_tree_:
+            # Class hierarchy graph is a tree
             y_rolled_up = flatten_list(y_rolled_up)
             Y = y_rolled_up
             num_targets = len(np.unique(Y))
         else:
+            # Class hierarchy graph is a DAG
             label_binarizer = MultiLabelBinarizer()
             Y = label_binarizer.fit_transform(y_rolled_up)
             num_targets = nnz_columns_count(Y)
@@ -381,6 +391,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             X.shape,
             num_targets,
         )
+
         if X.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
@@ -393,7 +404,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Training data could be materialized for only a single target at current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             constant = y_rolled_up[0] if self.is_tree_ else y_rolled_up[0][0]
-
             self.logger.debug(
                 "_train_local_classifier() - only a single target (child node) available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
                 node_id,
@@ -402,7 +412,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             if label_binarizer:
                 # If this is a DAG, we have a multilabel scenario,
-                # use the multi label binarizer it to transform constant for
+                # use the multi label binarizer to transform constant for
                 # dummy classifier.
                 constant = label_binarizer.transform([set([constant])])
 
@@ -426,9 +436,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             argmax = np.argmax(probs)
             score = probs[argmax]
             path_proba.append(score)
-            # if score < max(path_proba):
-            #     score = np.mean([max(path_proba), score])
-            #     probs[argmax] = score
 
             # Report probabilities in terms of complete class hierarchy
             classes = clf.classes_ if isinstance(clf.classes_, list) else clf.classes_.tolist()
@@ -490,8 +497,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 current_node,
             )
             return True
-
-        if callable(self.stopping_criteria):
+        elif callable(self.stopping_criteria):
             return self.stopping_criteria(
                 current_node=self.graph_.nodes[current_node],
                 prediction=prediction,
