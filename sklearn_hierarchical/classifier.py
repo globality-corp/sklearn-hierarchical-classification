@@ -24,8 +24,8 @@ from sklearn_hierarchical.validation import is_estimator, validate_parameters
 class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
     """Hierarchical classification strategy
 
-    Hierarchical classification in general deals with the scenario where our target classes
-    have inherent structure that can generally be represented as a tree or a directed acyclic graph (DAG),
+    Hierarchical classification deals with the scenario where our target classes have
+    inherent structure that can be represented as a tree or a directed acyclic graph (DAG),
     with nodes representing the target classes themselves, and edges representing their inter-relatedness,
     e.g 'IS A' semantics.
 
@@ -61,7 +61,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         If not provided, a base estimator will be chosen by the framework using various meta-learning
         heuristics (WIP).
 
-    class_hierarchy : networkx.DiGraph object
+    class_hierarchy : networkx.DiGraph object, or dict-of-dicts adjacency representation (see examples)
         A directed graph which represents the target classes and their relations. Must be a tree/DAG (no cycles).
         If not provided, this will be initialized during the `fit` operation into a trivial graph structure linking
         all classes given in `y` to an artificial "ROOT" node.
@@ -305,8 +305,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         Perform feature selection for training data.
 
+        Can be overridden by a sub-class to implement feature selection logic.
+
         """
-        # TODO: Implement
         return X
 
     def _build_metafeatures(self, X, y):
