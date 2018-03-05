@@ -27,7 +27,7 @@ You can then instantiate a classifier with the `interactive=True` flag set:
 clf = HierarchicalClassifier(
     base_estimator=svm.LinearSVC(),
     class_hierarchy=class_hierarchy,
-    interactive=True,
+    progress_wrapper=tqdm_notebook,
 )
 ```
 

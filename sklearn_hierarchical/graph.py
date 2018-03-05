@@ -24,9 +24,13 @@ def rollup_nodes(graph, source, targets):
     given source node in given graph.
 
     """
+    result_cache = {}
     resultset = []
     for node_id in targets:
-        all_paths = all_simple_paths(G=graph, source=source, target=node_id)
+        if node_id not in result_cache:
+            result_cache[node_id] = list(all_simple_paths(G=graph, source=source, target=node_id))
+
+        all_paths = result_cache[node_id]
         resultset.append([
             path[1]
             for path in all_paths

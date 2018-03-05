@@ -1,14 +1,12 @@
 """Helpers for workings with sequences and (numpy) arrays."""
+from itertools import chain
+
 import numpy as np
-from scipy.sparse import issparse, lil_matrix
+from scipy.sparse import issparse, lil_matrix, csr_matrix
 
 
 def flatten_list(lst):
-    return [
-        item
-        for sublist in lst
-        for item in sublist
-    ]
+    return list(chain(*lst))
 
 
 def apply_along_rows(func, X):
@@ -57,16 +55,39 @@ def apply_rollup_Xy(X, y):
         # No expansion needed
         return X, flatten_list(y)
 
-    X_ = lil_matrix((n_rows, X.shape[1]), dtype=X.dtype)
+    # Performance improvements require csr matrix
+    if not isinstance(X, csr_matrix):
+        X = csr_matrix(X)
+
+    indptr = np.zeros((n_rows+1), dtype=np.int32)
+    indices = []
+    data = []
+
+    indices_count = 0
     offset = 0
+
+    # Our goal is to expand the equal labelsets into their own row within X
+    # We do this by repeating each row exactly "labelset" times
     for i, labelset in enumerate(y):
         labelset_sz = len(labelset)
         for j in range(labelset_sz):
-            X_[offset+j] = X[i]
-        offset += labelset_sz
-    y_ = flatten_list(y)
+            indptr[offset+j] = indices_count
 
-    return X_.tocsr(), y_
+            indices.append(X.indices[X.indptr[i]:X.indptr[i+1]])
+            data.append(X.data[X.indptr[i]:X.indptr[i+1]])
+
+            indices_count += len(X.data[X.indptr[i]:X.indptr[i+1]])
+
+        offset += labelset_sz
+
+    indptr[-1] = indices_count
+
+    indices = np.concatenate(indices)
+    data = np.concatenate(data)
+
+    print(X, y)
+    y_ = flatten_list(y)
+    return csr_matrix((data, indices, indptr), shape=(n_rows, X.shape[1]), dtype=X.dtype), y_
 
 
 def nnz_rows_ix(X):

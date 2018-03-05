@@ -10,7 +10,6 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
-from tqdm import tqdm_notebook
 
 from sklearn_hierarchical.array import apply_along_rows, apply_rollup_Xy, flatten_list, nnz_rows_ix
 from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
@@ -108,10 +107,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there's no need
         for injecting an artifical root node.
 
-    interactive : bool
-        If set to True, functionality which is useful for interactive usage (e.g in a Jupyter notebook) will be
-        enabled. Specifically, fitting the model will display progress bars (via tqdm) where appropriate, and more
-        verbose logging will be emitted.
+    progress_wrapper : progress generator or None
+        If value is set, will attempt to use the given generator to display progress updates. This added functionality
+        is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting this
+        value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
 
     Attributes
     ----------
@@ -127,7 +126,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     """
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 root=ROOT, interactive=False):
+                 root=ROOT, progress_wrapper=None):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -135,7 +134,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.training_strategy = training_strategy
         self.stopping_criteria = stopping_criteria
         self.root = root
-        self.interactive = interactive
+        self.progress_wrapper = progress_wrapper
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -292,14 +291,44 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         return self.graph_.node[node_id]["X"]
 
+    def _extract_rows_csr(self, matrix, rows):
+        if not isinstance(matrix, csr_matrix):
+            matrix = csr_matrix(matrix)
+
+        # Short circuit if we want a blank matrix
+        if len(rows) == 0:
+            return csr_matrix(matrix.shape)
+
+        # Keep a record of the desired rows
+        indptr = np.zeros(matrix.indptr.shape, dtype=np.int32)
+        indices = []
+        data = []
+
+        # Keep track of the current index pointer
+        indices_count = 0
+
+        for i in range(matrix.shape[0]):
+            indptr[i] = indices_count
+
+            if i in rows:
+                indices.append(matrix.indices[matrix.indptr[i]:matrix.indptr[i+1]])
+                data.append(matrix.data[matrix.indptr[i]:matrix.indptr[i+1]])
+                indices_count += len(matrix.data[matrix.indptr[i]:matrix.indptr[i+1]])
+
+        indptr[-1] = indices_count
+
+        indices = np.concatenate(indices)
+        data = np.concatenate(data)
+
+        return csr_matrix((data, indices, indptr), shape=matrix.shape)
+
     def _build_features(self, X, y, indices):
-        X_ = lil_matrix(X.shape, dtype=X.dtype)
-        X_[indices, :] = X[indices, :]
+        X_ = self._extract_rows_csr(X, indices)
 
         # Perform feature selection
         X_ = self._select_features(X=X_, y=np.array(y)[indices])
 
-        return X_.tocsr()
+        return X_
 
     def _select_features(self, X, y):
         """
@@ -512,7 +541,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return LogisticRegression()
 
     def _progress(self, total, desc, **kwargs):
-        if self.interactive:
-            return tqdm_notebook(total=total, desc=desc)
+        if self.progress_wrapper:
+            return self.progress_wrapper(total=total, desc=desc)
         else:
             return DummyProgress()
