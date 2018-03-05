@@ -4,7 +4,7 @@ Hierarchical classifier interface.
 """
 import numpy as np
 from networkx import DiGraph, is_tree
-from scipy.sparse import csr_matrix, lil_matrix
+from scipy.sparse import csr_matrix
 from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
@@ -109,8 +109,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     progress_wrapper : progress generator or None
         If value is set, will attempt to use the given generator to display progress updates. This added functionality
-        is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting this
-        value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
+        is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting
+        this value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
 
     Attributes
     ----------

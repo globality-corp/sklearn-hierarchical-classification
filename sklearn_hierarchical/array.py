@@ -2,7 +2,7 @@
 from itertools import chain
 
 import numpy as np
-from scipy.sparse import issparse, lil_matrix, csr_matrix
+from scipy.sparse import issparse, csr_matrix
 
 
 def flatten_list(lst):
@@ -85,7 +85,6 @@ def apply_rollup_Xy(X, y):
     indices = np.concatenate(indices)
     data = np.concatenate(data)
 
-    print(X, y)
     y_ = flatten_list(y)
     return csr_matrix((data, indices, indptr), shape=(n_rows, X.shape[1]), dtype=X.dtype), y_
 
