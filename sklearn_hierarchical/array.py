@@ -89,6 +89,51 @@ def apply_rollup_Xy(X, y):
     return csr_matrix((data, indices, indptr), shape=(n_rows, X.shape[1]), dtype=X.dtype), y_
 
 
+def extract_rows_csr(matrix, rows):
+    """
+    Parameters
+    ----------
+    matrix : (sparse) csr_matrix
+
+    rows : list of row ids
+
+    Returns
+    -------
+    matrix_: (sparse) csr_matrix
+        Transformed by extracting the desired rows from `matrix`
+
+    """
+    if not isinstance(matrix, csr_matrix):
+        matrix = csr_matrix(matrix)
+
+    # Short circuit if we want a blank matrix
+    if len(rows) == 0:
+        return csr_matrix(matrix.shape)
+
+    # Keep a record of the desired rows
+    indptr = np.zeros(matrix.indptr.shape, dtype=np.int32)
+    indices = []
+    data = []
+
+    # Keep track of the current index pointer
+    indices_count = 0
+
+    for i in range(matrix.shape[0]):
+        indptr[i] = indices_count
+
+        if i in rows:
+            indices.append(matrix.indices[matrix.indptr[i]:matrix.indptr[i+1]])
+            data.append(matrix.data[matrix.indptr[i]:matrix.indptr[i+1]])
+            indices_count += len(matrix.data[matrix.indptr[i]:matrix.indptr[i+1]])
+
+    indptr[-1] = indices_count
+
+    indices = np.concatenate(indices)
+    data = np.concatenate(data)
+
+    return csr_matrix((data, indices, indptr), shape=matrix.shape)
+
+
 def nnz_rows_ix(X):
     """Return row indices which have at least one non-zero column value."""
     return np.unique(X.nonzero()[0])
