@@ -39,7 +39,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
         if n_leaf is None:
             n_leaf = n - 1
 
-        G = DiGraph(data=product((ROOT,), range(n_leaf)))
+        G = DiGraph(product((ROOT,), range(n_leaf)))
 
     return to_dict_of_lists(G)
 
