@@ -2,7 +2,7 @@
 from setuptools import find_packages, setup
 
 project = "sklearn-hierarchical-classification"
-version = "0.2.0"
+version = "0.3.0"
 
 setup(
     name=project,
@@ -20,7 +20,6 @@ setup(
         "scikit-learn>=0.19.0",
         "scipy>=0.19.1",
         "six>=1.10.0",
-        "tqdm>=4.15.0",
     ],
     setup_requires=[
         "nose>=1.3.7",

@@ -52,6 +52,7 @@ def classify_digits():
     )
     X, y = make_digits_dataset(
         targets=[1, 7, 3, 8, 9],
+        as_str=False,
     )
     X_train, X_test, y_train, y_test = train_test_split(
         X,
