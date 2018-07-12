@@ -2,6 +2,7 @@
   "type": "python-library",
   "params": {
     "name": "sklearn-hierarchical-classification",
+    "import-name": "sklearn_hierarchical",
     "docker-tag": "python:3.6.6-slim-stretch"
   }
 }
