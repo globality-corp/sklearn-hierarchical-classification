@@ -85,8 +85,8 @@ jobs:
       - run:
           name: Test code
           command: |
-            docker create -v /src/sklearn_hierarchical_classification/tests/ --name service_tests alpine:3.4 /bin/true
-            docker cp $(pwd)/sklearn_hierarchical_classification/tests service_tests:/src/sklearn_hierarchical_classification/
+            docker create -v /src/sklearn_hierarchical/tests/ --name service_tests alpine:3.4 /bin/true
+            docker cp $(pwd)/sklearn_hierarchical/tests service_tests:/src/sklearn_hierarchical/
             eval $(aws ecr get-login --no-include-email)
             docker pull ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1}
             docker run -it  --volumes-from service_tests ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1} test
@@ -103,8 +103,8 @@ jobs:
       - run:
           name: Run Lint
           command: |
-            docker create -v /src/sklearn_hierarchical_classification/tests/ --name service_tests alpine:3.4 /bin/true
-            docker cp $(pwd)/sklearn_hierarchical_classification/tests service_tests:/src/sklearn_hierarchical_classification/
+            docker create -v /src/sklearn_hierarchical/tests/ --name service_tests alpine:3.4 /bin/true
+            docker cp $(pwd)/sklearn_hierarchical/tests service_tests:/src/sklearn_hierarchical/
             eval $(aws ecr get-login --no-include-email)
             docker pull ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1}
             docker run -it --volumes-from service_tests ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1} lint
