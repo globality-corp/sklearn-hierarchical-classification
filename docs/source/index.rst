@@ -6,7 +6,7 @@
 Welcome to sklearn-hierarchical-classification's documentation!
 ===============================================================
 
-.. automodule:: sklearn_hierarchical
+.. automodule:: sklearn_hierarchical_classification
    :members:
 
 -------------------
@@ -15,8 +15,8 @@ Welcome to sklearn-hierarchical-classification's documentation!
 
 .. toctree::
 
-   sklearn_hierarchical.classifier
-   sklearn_hierarchical.metrics
+   sklearn_hierarchical_classification.classifier
+   sklearn_hierarchical_classification.metrics
 
 
 Indices and tables

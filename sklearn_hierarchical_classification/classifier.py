@@ -11,12 +11,18 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
 
-from sklearn_hierarchical.array import apply_along_rows, apply_rollup_Xy, extract_rows_csr, flatten_list, nnz_rows_ix
-from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
-from sklearn_hierarchical.decorators import logger
-from sklearn_hierarchical.dummy import DummyProgress
-from sklearn_hierarchical.graph import make_flat_hierarchy, rollup_nodes
-from sklearn_hierarchical.validation import is_estimator, validate_parameters
+from sklearn_hierarchical_classification.array import (
+    apply_along_rows,
+    apply_rollup_Xy,
+    extract_rows_csr,
+    flatten_list,
+    nnz_rows_ix,
+)
+from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
+from sklearn_hierarchical_classification.decorators import logger
+from sklearn_hierarchical_classification.dummy import DummyProgress
+from sklearn_hierarchical_classification.graph import make_flat_hierarchy, rollup_nodes
+from sklearn_hierarchical_classification.validation import is_estimator, validate_parameters
 
 
 @logger

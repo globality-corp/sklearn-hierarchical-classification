@@ -5,7 +5,7 @@ from hamcrest import (
     raises,
 )
 
-from sklearn_hierarchical.tests.fixtures import make_classifier_and_data
+from sklearn_hierarchical_classification.tests.fixtures import make_classifier_and_data
 
 
 def test_parameter_validation():
