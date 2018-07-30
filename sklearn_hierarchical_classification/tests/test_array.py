@@ -5,7 +5,7 @@ from hamcrest import (
     is_,
 )
 
-from sklearn_hierarchical.array import apply_rollup_Xy
+from sklearn_hierarchical_classification.array import apply_rollup_Xy
 
 
 def test_apply_rollup_xy():

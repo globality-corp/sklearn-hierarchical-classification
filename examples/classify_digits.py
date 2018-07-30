@@ -12,9 +12,9 @@ from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 
-from sklearn_hierarchical.classifier import HierarchicalClassifier
-from sklearn_hierarchical.constants import ROOT
-from sklearn_hierarchical.tests.fixtures import make_digits_dataset
+from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
+from sklearn_hierarchical_classification.constants import ROOT
+from sklearn_hierarchical_classification.tests.fixtures import make_digits_dataset
 
 
 # Used for seeding random state

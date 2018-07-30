@@ -1,7 +1,7 @@
-``sklearn_hierarchical.classifier`` Module
+``sklearn_hierarchical_classification.classifier`` Module
 ==========================================
 
-.. currentmodule:: sklearn_hierarchical
+.. currentmodule:: sklearn_hierarchical_classification
 
 .. autosummary::
     :toctree: generated/
