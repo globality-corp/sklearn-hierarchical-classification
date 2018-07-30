@@ -20,10 +20,14 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils.estimator_checks import check_estimator
 
-from sklearn_hierarchical.classifier import HierarchicalClassifier
-from sklearn_hierarchical.constants import CLASSIFIER, DEFAULT, ROOT
-from sklearn_hierarchical.tests.fixtures import make_classifier, make_classifier_and_data, make_digits_dataset
-from sklearn_hierarchical.tests.matchers import matches_graph
+from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
+from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, ROOT
+from sklearn_hierarchical_classification.tests.fixtures import (
+    make_classifier,
+    make_classifier_and_data,
+    make_digits_dataset,
+)
+from sklearn_hierarchical_classification.tests.matchers import matches_graph
 
 
 RANDOM_STATE = 42

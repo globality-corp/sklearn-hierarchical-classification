@@ -8,8 +8,8 @@ import numpy as np
 from networkx import DiGraph, gn_graph, to_dict_of_lists
 from sklearn.datasets import load_digits, make_blobs
 
-from sklearn_hierarchical.classifier import HierarchicalClassifier
-from sklearn_hierarchical.constants import ROOT
+from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
+from sklearn_hierarchical_classification.constants import ROOT
 
 
 def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):

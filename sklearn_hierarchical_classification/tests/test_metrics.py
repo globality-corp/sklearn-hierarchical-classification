@@ -7,7 +7,7 @@ from hamcrest import (
 )
 from networkx import DiGraph, path_graph
 
-from sklearn_hierarchical.metrics import (
+from sklearn_hierarchical_classification.metrics import (
     h_fbeta_score,
     h_precision_score,
     h_recall_score,

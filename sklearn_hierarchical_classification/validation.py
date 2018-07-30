@@ -1,5 +1,5 @@
 """Validation helpers."""
-from sklearn_hierarchical.constants import (
+from sklearn_hierarchical_classification.constants import (
     VALID_ALGORITHM,
     VALID_PREDICTION_DEPTH,
     VALID_TRAINING_STRATEGY,
