@@ -179,6 +179,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != self.root
         )
+        self.logger.debug("fit() - self.classes_ = %s", self.classes_)
 
         # Recursively build training feature sets for each node in graph
         with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
@@ -289,7 +290,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
-        # Build and store metafeatures for node
+        # Build and store meta-features for node
         self.graph_.node[node_id][METAFEATURES] = self._build_metafeatures(
             X=self.graph_.node[node_id]["X"],
             y=y,
@@ -435,7 +436,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
-                class_idx = self.classes_.index(class_)
+                try:
+                    class_idx = self.classes_.index(class_)
+                except ValueError:
+                    # This may happen if the classes_ enumeration we construct during fit()
+                    # has a mismatch with the individual node classifiers' classes_.
+                    self.logger.error(
+                        "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
+                        class_,
+                        type(class_),
+                        path,
+                    )
+                    raise
+
                 class_proba[class_idx] = probs[local_class_idx]
                 if local_class_idx == argmax:
                     prediction = class_
