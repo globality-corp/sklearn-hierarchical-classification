@@ -15,8 +15,8 @@ Welcome to sklearn-hierarchical-classification's documentation!
 
 .. toctree::
 
-   sklearn_hierarchical_classification.classifier
-   sklearn_hierarchical_classification.metrics
+   sklearn_hierarchical.classifier
+   sklearn_hierarchical.metrics
 
 
 Indices and tables

@@ -93,3 +93,6 @@ docs/source/generated
 
 # PyBuilder
 target/
+
+# gh-pages
+public
