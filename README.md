@@ -38,7 +38,7 @@ Auto-generated documentation is provided via sphinx. To build / view:
 
     $ cd docs/
     $ make html
-    $ open _build/index.html
+    $ open build/html/index.html
 
 
 ## Further Reading

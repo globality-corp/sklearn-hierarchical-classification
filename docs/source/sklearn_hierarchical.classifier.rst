@@ -1,5 +1,5 @@
 ``sklearn_hierarchical_classification.classifier`` Module
-==========================================
+=========================================================
 
 .. currentmodule:: sklearn_hierarchical_classification
 
