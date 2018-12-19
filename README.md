@@ -2,6 +2,8 @@
 
 Hierarchical classification module based on scikit-learn's interfaces and conventions.
 
+See the GitHub Pages hosted documentation [here](http://code.globality.com/sklearn-hierarchical-classification/).
+
 
 ## Installation
 
