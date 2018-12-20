@@ -1,5 +1,7 @@
 # sklearn-hierarchical-classification
 
+[![CircleCI](https://circleci.com/gh/globality-corp/sklearn-hierarchical-classification.svg?style=svg&circle-token=6d5d6914ea5a5e2ad92cde6a8166bf25b229ad6a)](https://circleci.com/gh/globality-corp/sklearn-hierarchical-classification)
+
 Hierarchical classification module based on scikit-learn's interfaces and conventions.
 
 See the GitHub Pages hosted documentation [here](http://code.globality.com/sklearn-hierarchical-classification/).
