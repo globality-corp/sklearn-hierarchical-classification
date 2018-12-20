@@ -33,7 +33,7 @@ def fill_ancestors(y, graph, copy=True):
     for target, distances in paths:
         ix_rows = np.where(y[:, target] > 0)[0]
         ancestors = list(distances.keys())
-        y_[np.meshgrid(ix_rows, ancestors)] = 1
+        y_[tuple(np.meshgrid(ix_rows, ancestors))] = 1
     graph.reverse(copy=False)
     return y_
 
