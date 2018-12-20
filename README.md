@@ -43,6 +43,10 @@ Auto-generated documentation is provided via sphinx. To build / view:
     $ open build/html/index.html
 
 
+Documentation is published to GitHub pages from the `gh-pages` branch.
+If you are a contributor and need to update documentation, a good starting point for getting setup is [this tutorial](https://gohugo.io/hosting-and-deployment/hosting-on-github/#deployment-of-project-pages-from-docs-folder-on-master-branch).
+
+
 ## Further Reading
 
 this module is heavily influenced by the following previous work and papers:
