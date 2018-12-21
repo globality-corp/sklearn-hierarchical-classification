@@ -5,6 +5,8 @@ Evaluation metrics for hierarchical classification.
 import numpy as np
 from networkx import all_pairs_shortest_path_length
 
+from sklearn_hierarchical_classification.constants import ROOT
+
 
 def fill_ancestors(y, graph, copy=True):
     """
@@ -31,6 +33,9 @@ def fill_ancestors(y, graph, copy=True):
     y_ = y.copy() if copy else y
     paths = all_pairs_shortest_path_length(graph.reverse(copy=False))
     for target, distances in paths:
+        if target == ROOT:
+            # Our stub root node, can skip
+            continue
         ix_rows = np.where(y[:, target] > 0)[0]
         ancestors = list(distances.keys())
         y_[tuple(np.meshgrid(ix_rows, ancestors))] = 1
