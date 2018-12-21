@@ -42,7 +42,7 @@ def multi_labeled(y_true, y_pred, graph):
         ground truth targets, transformed to a binary multi-label matrix format.
     y_pred_ : array-like, shape = [n_samples, n_classes].
         predicted targets, transformed to a binary multi-label matrix format.
-    graph : the class hierarchy graph, given as a `networkx.DiGraph` instance,
+    graph_ : the class hierarchy graph, given as a `networkx.DiGraph` instance,
         transformed to use the (integer) IDs fitted by the multi label binarizer.
 
     """
