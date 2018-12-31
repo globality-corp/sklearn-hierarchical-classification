@@ -22,6 +22,8 @@ defaults: &defaults
         EXTRA_INDEX_URL: "InjectedDuringRuntime"
         AWS_ECR_DOMAIN: "InjectedDuringRuntime"
         JFROG_AUTH: "InjectedDuringRuntime"
+        JFROG_USERNAME: "InjectedDuringRuntime"
+        JFROG_PASSWORD: "InjectedDuringRuntime"
 
 deploy_defaults: &deploy_defaults
   working_directory: ~/repo
@@ -34,6 +36,8 @@ deploy_defaults: &deploy_defaults
         EXTRA_INDEX_URL: "InjectedDuringRuntime"
         AWS_ECR_DOMAIN: "InjectedDuringRuntime"
         JFROG_AUTH: "InjectedDuringRuntime"
+        JFROG_USERNAME: "InjectedDuringRuntime"
+        JFROG_PASSWORD: "InjectedDuringRuntime"
 
 whitelist: &whitelist
   paths:
@@ -128,7 +132,17 @@ jobs:
       - run:
           name: Deploy
           command: |
-            echo "Not publishing package!"
+            echo "[distutils]" > ~/.pypirc
+            echo "index-servers =" >> ~/.pypirc
+            echo "    jfrog " >> ~/.pypirc
+            echo >> ~/.pypirc
+            echo "[jfrog]" >> ~/.pypirc
+            echo "repository:https://globality.jfrog.io/globality/api/pypi/pypi" >> ~/.pypirc
+            echo "username:$JFROG_USERNAME" >> ~/.pypirc
+            echo "password:$JFROG_PASSWORD" >> ~/.pypirc
+            echo >> ~/.pypirc
+            python setup.py register -r jfrog
+            python setup.py sdist upload -r jfrog
 
 workflows:
   version: 2
