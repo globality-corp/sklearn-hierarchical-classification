@@ -7,14 +7,14 @@
 #  Any changes made to this file will be overwritten in the
 #  next version of the build.
 #
-#  See: http://github.com/globality-corp/globality-buid
+#  See: http://github.com/globality-corp/globality-build
 #
 #
 
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:stable
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2.0.0
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -22,13 +22,11 @@ defaults: &defaults
         EXTRA_INDEX_URL: "InjectedDuringRuntime"
         AWS_ECR_DOMAIN: "InjectedDuringRuntime"
         JFROG_AUTH: "InjectedDuringRuntime"
-        PYPI_USERNAME: "InjectedDuringRuntime"
-        PYPI_PASSWORD: "InjectedDuringRuntime"
 
 deploy_defaults: &deploy_defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:stable
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2.0.0
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -36,8 +34,6 @@ deploy_defaults: &deploy_defaults
         EXTRA_INDEX_URL: "InjectedDuringRuntime"
         AWS_ECR_DOMAIN: "InjectedDuringRuntime"
         JFROG_AUTH: "InjectedDuringRuntime"
-        PYPI_USERNAME: "InjectedDuringRuntime"
-        PYPI_PASSWORD: "InjectedDuringRuntime"
 
 whitelist: &whitelist
   paths:
@@ -70,9 +66,8 @@ jobs:
           # install dependencies for loading ecs task definitions
           command: |
             eval $(aws ecr get-login --no-include-email)
-            python -m middlefield globality build build-gen --config .globality/build.json
-            python -m middlefield globality build docker-base --repo python-library
-            python -m middlefield globality build docker --repo python-library
+            globality-build docker-base --repo python-library
+            globality-build docker --repo python-library
 
   test:
     <<: *defaults
@@ -90,7 +85,6 @@ jobs:
             eval $(aws ecr get-login --no-include-email)
             docker pull ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1}
             docker run -it  --volumes-from service_tests ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1} test
-
   lint:
     <<: *defaults
 
@@ -109,8 +103,24 @@ jobs:
             docker pull ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1}
             docker run -it --volumes-from service_tests ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1} lint
 
+  typehinting:
+    <<: *defaults
 
-  deploy:
+    steps:
+      - attach_workspace:
+          at: ~/repo
+
+      - setup_remote_docker
+
+      - run:
+          name: Run Typehinting
+          command: |
+            docker create -v /src/sklearn_hierarchical_classification/tests/ --name service_tests alpine:3.4 /bin/true
+            docker cp $(pwd)/sklearn_hierarchical_classification/tests service_tests:/src/sklearn_hierarchical_classification/
+            eval $(aws ecr get-login --no-include-email)
+            docker pull ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1}
+            docker run -it --volumes-from service_tests ${AWS_ECR_DOMAIN}/python-library:${CIRCLE_SHA1} typehinting
+  deploy_pypi:
     <<: *defaults
     steps:
       - attach_workspace:
@@ -118,16 +128,7 @@ jobs:
       - run:
           name: Deploy
           command: |
-            echo "[distutils]" > ~/.pypirc
-            echo "index-servers =" >> ~/.pypirc
-            echo "    pypi" >> ~/.pypirc
-            echo >> ~/.pypirc
-            echo "[pypi]" >> ~/.pypirc
-            echo "username:$PYPI_USERNAME" >> ~/.pypirc
-            echo "password:$PYPI_PASSWORD" >> ~/.pypirc
-            echo >> ~/.pypirc
-            python setup.py register -r pypi
-            python setup.py sdist upload -r pypi
+            echo "Not publishing package!"
 
 workflows:
   version: 2
@@ -160,12 +161,22 @@ workflows:
             # run for all branches and tags
             tags:
               only: /.*/
-      - deploy:
+      - typehinting:
+          requires:
+            - build_base_docker
+          filters:
+            # run for all branches and tags
+            tags:
+              only: /.*/
+      - deploy_pypi:
           requires:
             - test
             - lint
+            - typehinting
           filters:
             branches:
               ignore: /.*/
             tags:
               only: /^[0-9]+(\.[0-9]+)*/
+
+
