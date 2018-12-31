@@ -1,6 +1,7 @@
 {
-  "type": "python-library",
   "params": {
     "name": "sklearn-hierarchical-classification"
-  }
+  },
+  "type": "python-library",
+  "version": "2.2.1"
 }
