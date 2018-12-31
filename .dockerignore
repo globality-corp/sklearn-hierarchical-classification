@@ -1,0 +1,13 @@
+*
+!sklearn_hierarchical_classification
+sklearn_hierarchical_classification/test*
+!dist/*-none-any.whl
+!entrypoint.sh
+!MANIFEST.in
+!README.md
+!requirements.txt
+!setup.py
+!setup.cfg
+**/*.pyc
+**/*~
+
