@@ -47,11 +47,13 @@ def multi_labeled(y_true, y_pred, graph):
 
     """
     mlb = MultiLabelBinarizer()
-    mlb.fit(
+    all_classes = [
         node
         for node in graph.nodes
         if node != ROOT
-    )
+    ]
+    # Nb. we pass a (singleton) list-within-a-list as fit() expects an iterable of iterables
+    mlb.fit([all_classes])
 
     node_label_mapping = {
         old_label: new_label
@@ -67,11 +69,12 @@ def multi_labeled(y_true, y_pred, graph):
 
 def fill_ancestors(y, graph, copy=True):
     """
-    Compute the full ancestor set for y given as a matrix of 0-1.
+    Compute the full ancestor set for y, where y is in binary multi-label format,
+    e.g. as a matrix of 0-1.
 
     Each row will be processed and filled in with 1s in indexes corresponding
-    to the (integer) id of the ancestor nodes of those already marked with 1
-    in that row, based on the given class hierarchy graph.
+    to the ancestor nodes of those already marked with 1 in that row,
+    based on the given class hierarchy graph.
 
     Parameters
     ----------
@@ -93,9 +96,8 @@ def fill_ancestors(y, graph, copy=True):
         if target == ROOT:
             # Our stub ROOT node, can skip
             continue
-
         ix_rows = np.where(y[:, target] > 0)[0]
-        # all ancestors, except the last one which would be the ROOT node
+        # all ancestors, except the last one which would be the root node
         ancestors = list(distances.keys())[:-1]
         y_[tuple(np.meshgrid(ix_rows, ancestors))] = 1
     graph.reverse(copy=False)
@@ -133,7 +135,7 @@ def h_precision_score(y_true, y_pred, class_hierarchy):
     Returns
     -------
     hP : float
-        The computed hierarchical precision score.
+        The computed (micro-averaged) hierarchical precision score.
 
     """
     y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
@@ -178,7 +180,7 @@ def h_recall_score(y_true, y_pred, class_hierarchy):
     Returns
     -------
     hR : float
-        The computed hierarchical recall score.
+        The computed (micro-averaged) hierarchical recall score.
 
     """
     y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
@@ -226,7 +228,7 @@ def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1.):
     Returns
     -------
     hFscore : float
-        The computed hierarchical F-score.
+        The computed (micro-averaged) hierarchical F-score.
 
     """
     hP = h_precision_score(y_true, y_pred, class_hierarchy)
