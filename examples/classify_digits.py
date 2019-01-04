@@ -14,6 +14,7 @@ from sklearn.pipeline import make_pipeline
 
 from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
 from sklearn_hierarchical_classification.constants import ROOT
+from sklearn_hierarchical_classification.metrics import h_fbeta_score, multi_labeled
 from sklearn_hierarchical_classification.tests.fixtures import make_digits_dataset
 
 
@@ -71,6 +72,15 @@ def classify_digits():
     y_pred = clf.predict(X_test)
 
     print("Classification Report:\n", classification_report(y_test, y_pred))
+
+    # Demonstrate using our hierarchical metrics module with MLB wrapper
+    with multi_labeled(y_test, y_pred, clf.graph_) as (y_test_, y_pred_, graph_):
+        h_fbeta = h_fbeta_score(
+            y_test_,
+            y_pred_,
+            graph_,
+        )
+        print("h_fbeta_score: ", h_fbeta)
 
 
 if __name__ == "__main__":
