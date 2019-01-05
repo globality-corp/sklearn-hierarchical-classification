@@ -32,8 +32,11 @@ This package leverages standardized conventions and naming that was introduced b
 
 .. toctree::
 
+   sklearn_hierarchical.array
    sklearn_hierarchical.classifier
+   sklearn_hierarchical.graph
    sklearn_hierarchical.metrics
+   sklearn_hierarchical.validation
 
 
 Indices and tables
