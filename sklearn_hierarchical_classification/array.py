@@ -142,3 +142,38 @@ def nnz_rows_ix(X):
 def nnz_columns_count(X):
     """Return count of columns which have at least one non-zero value."""
     return len(np.count_nonzero(X, axis=0))
+
+def apply_rollup_Xy_raw(X, y):
+    """
+    Parameters
+    ----------
+    X : List
+
+    y : list-of-lists - [n_samples]
+        For each sample, y maintains list of labels this sample should be used for in training.
+
+    Returns
+    -------
+    X_, y_
+        Transformed by 'flattening' out y parameter and duplicating corresponding rows in X
+
+    """
+    # Compute number of rows we will have after transformation
+    n_rows = sum(len(labelset) for labelset in y)
+
+    if n_rows == X.shape[0]:
+        # No expansion needed
+        return X, flatten_list(y)
+
+
+
+    # Our goal is to expand the equal labelsets into their own row within X
+    # We do this by repeating each row exactly "labelset" times
+    X_rows=[]
+    for i, labelset in enumerate(y):
+        labelset_sz = len(labelset)
+        for j in range(labelset_sz):
+            X_rows.append(X[j])
+
+    y_ = flatten_list(y)
+    return X_rows, y_
