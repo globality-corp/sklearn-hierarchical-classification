@@ -478,8 +478,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        if len(X_)>0:
+        
+        if self.preprocessing:
+            if len(X_)>0:
+                clf.fit(X=X_, y=y_)
+        else:
             clf.fit(X=X_, y=y_)
+
         self.graph_.node[node_id][CLASSIFIER] = clf
 
     def _recursive_predict(self, x, root):
@@ -491,11 +496,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            if hasattr(clf,"decision_function"):                
-                probs = clf.decision_function([x])
-                argmax = np.argmax(probs)
+            if hasattr(clf,"decision_function"):     
+                if self.preprocessing or self.mlb:           
+                    probs = clf.decision_function([x])
+                    argmax = np.argmax(probs)
+                    score = probs[0,argmax]
+
+                else :
+                    probs = clf.predict_proba(x)[0]
                 
-                score = probs[0,argmax]
+                    argmax = np.argmax(probs)
+                
+                    score = probs[argmax]
+
             else:
                 probs = clf.predict_proba(x)[0]
                 
