@@ -515,9 +515,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
+<<<<<<< HEAD
         if len(X_) > 0:
             clf.fit(X=X_, y=y_)
         self.graph_.nodes[node_id][CLASSIFIER] = clf
+=======
+
+        if self.preprocessing:
+            if len(X_)>0:
+                clf.fit(X=X_, y=y_)
+        else:
+            clf.fit(X=X_, y=y_)
+
+        self.graph_.node[node_id][CLASSIFIER] = clf
+>>>>>>> d115845... fixed error so classify_digits.py works now again
 
     def _recursive_predict(self, x, root):
         if CLASSIFIER not in self.graph_.nodes[root]:
@@ -529,9 +540,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         while clf:
             if hasattr(clf, "decision_function"):
-                probs = clf.decision_function([x])
-                argmax = np.argmax(probs)
-                score = probs[0, argmax]
+                if self.preprocessing or self.mlb:
+                    probs = clf.decision_function([x])
+                    argmax = np.argmax(probs)
+                    score = probs[0, argmax]
+                else:
+                    probs = clf.predict_proba(x)[0]
+                    argmax = np.argmax(probs)
+                    score = probs[argmax]
+
             else:
                 probs = clf.predict_proba(x)[0]
                 argmax = np.argmax(probs)
