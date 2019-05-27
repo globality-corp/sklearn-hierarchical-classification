@@ -148,7 +148,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 root=ROOT, progress_wrapper=None):
+                 root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -157,6 +157,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.stopping_criteria = stopping_criteria
         self.root = root
         self.progress_wrapper = progress_wrapper
+        self.preprocessing = preprocessing
+        self.mlb = mlb
+        self.threshold = 0
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -178,7 +181,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
 
         """
-        X, y = check_X_y(X, y, accept_sparse='csr')
+        if self.preprocessing:
+            y = check_array(
+                y,
+                'csr',
+                force_all_finite=True,
+                ensure_2d=False,
+                dtype=None,
+            )
+
+            if len(X) != y.shape[0]:
+                raise ValueError("bad input shape: len(X) != y.shape[0]")
+        else:
+            X, y = check_X_y(X, y, accept_sparse='csr')
+
         check_classification_targets(y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
@@ -222,12 +238,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
             # TODO support multi-label / paths?
             path, _ = self._recursive_predict(x, root=self.root)
-            return path[-1]
+            if self.mlb:
+                return path
+            else:
+                return path[-1]
+
+        if self.preprocessing:
+            return np.array([
+                _classify(X[i])
+                for i in range(len(X))
+            ])
+        else:
+            X = check_array(X, accept_sparse="csr")
 
         y_pred = apply_along_rows(_classify, X=X)
         return y_pred
@@ -248,11 +274,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             order, as they appear in the attribute `classes_`.
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
             _, scores = self._recursive_predict(x, root=self.root)
             return scores
+
+        if self.preprocessing:
+            return np.array([
+                _classify(X[i])
+                for i in range(len(X))
+            ])
+        else:
+            X = check_array(X, accept_sparse="csr")
 
         y_pred = apply_along_rows(_classify, X=X)
         return y_pred
@@ -294,10 +327,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
-        self.graph_.nodes[node_id]["X"] = csr_matrix(
-            X.shape,
-            dtype=X.dtype,
-        )
+        if self.preprocessing:
+            self.graph_.nodes[node_id]["X"] = []
+        else:
+            self.graph_.nodes[node_id]["X"] = csr_matrix(
+                X.shape,
+                dtype=X.dtype,
+            )
 
         for child_node_id in self.graph_.successors(node_id):
             self.graph_.nodes[node_id]["X"] += \
@@ -330,7 +366,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return X_out
 
     def _build_features(self, X, y, indices):
-        X_ = extract_rows_csr(X, indices)
+        if self.preprocessing:
+            X_ = [X[tk] for tk in indices]
+        else:
+            X_ = extract_rows_csr(X, indices)
 
         # Perform feature selection
         X_ = self._select_features(X=X_, y=np.array(y)[indices])
@@ -367,6 +406,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             * 'n_targets' - Number of targets (classes) to classify into at given node.
 
         """
+        if self.preprocessing:
+            return dict(
+                n_samples=len(X),
+                n_targets=len(np.unique(y)),
+            )
+
         # Indices of non-zero rows in X, i.e rows corresponding to relevant samples for this node.
         ix = nnz_rows_ix(X)
 
@@ -402,33 +447,53 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 )
                 return
 
-        X = self.graph_.nodes[node_id]["X"]
-        nnz_rows = nnz_rows_ix(X)
-        X_ = X[nnz_rows, :]
+        if self.preprocessing:
+            X_ = X
+            nnz_rows = range(len(X))
+            Xl = len(X_)
+        else:
+            X = self.graph_.nodes[node_id]["X"]
+            nnz_rows = nnz_rows_ix(X)
+            X_ = X[nnz_rows, :]
+            Xl = X_.shape
 
         y_rolled_up = rollup_nodes(
             graph=self.graph_,
             source=node_id,
             targets=[y[idx] for idx in nnz_rows],
+            mlb=self.mlb
         )
 
         if self.is_tree_:
-            y_ = flatten_list(y_rolled_up)
+            if self.mlb is None:
+                y_ = flatten_list(y_rolled_up)
+            else:
+                y_ = self.mlb.transform(y_rolled_up)
+                # take all non zero, only compare in side the siblings
+                idx = np.where(y_.sum(1) > 0)[0]
+                y_ = y_[idx, :]
+                if self.preprocessing:
+                    X_ = [X_[tk] for tk in idx]
+                else:
+                    X_ = X_[idx, :]
         else:
             # Class hierarchy graph is a DAG
-            X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
+            if self.preprocessing:
+                X_, y_ = apply_rollup_Xy_raw(X_, y_rolled_up)
+            else:
+                X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
 
         num_targets = len(np.unique(y_))
 
         self.logger.debug(
             "_train_local_classifier() - Training local classifier for node: %s, X_.shape: %s, len(y): %s, n_targets: %s",  # noqa:E501
             node_id,
-            X_.shape,
+            Xl,
             len(y_),
             num_targets,
         )
 
-        if X_.shape[0] == 0:
+        if not self.preprocessing and X_.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
@@ -450,51 +515,76 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        clf.fit(X=X_, y=y_)
+        if len(X_) > 0:
+            clf.fit(X=X_, y=y_)
         self.graph_.nodes[node_id][CLASSIFIER] = clf
 
     def _recursive_predict(self, x, root):
+        if CLASSIFIER not in self.graph_.nodes[root]:
+            return None, None
         clf = self.graph_.nodes[root][CLASSIFIER]
         path = [root]
         path_proba = []
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            probs = clf.predict_proba(x)[0]
-            argmax = np.argmax(probs)
-            score = probs[argmax]
+            if hasattr(clf, "decision_function"):
+                probs = clf.decision_function([x])
+                argmax = np.argmax(probs)
+                score = probs[0, argmax]
+            else:
+                probs = clf.predict_proba(x)[0]
+                argmax = np.argmax(probs)
+                score = probs[argmax]
+
             path_proba.append(score)
+            if self.mlb is not None:
+                predictions = []
 
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
-                try:
-                    class_idx = self.classes_.index(class_)
-                except ValueError:
-                    # This may happen if the classes_ enumeration we construct during fit()
-                    # has a mismatch with the individual node classifiers' classes_.
-                    self.logger.error(
-                        "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
-                        class_,
-                        type(class_),
-                        path,
-                    )
-                    raise
+                if self.mlb is None:
+                    try:
+                        class_idx = self.classes_.index(class_)
+                    except ValueError:
+                        # This may happen if the classes_ enumeration we construct during fit()
+                        # has a mismatch with the individual node classifiers' classes_.
+                        self.logger.error(
+                            "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
+                            class_,
+                            type(class_),
+                            path,
+                        )
+                        raise
 
-                class_proba[class_idx] = probs[local_class_idx]
-                if local_class_idx == argmax:
-                    prediction = class_
+                    class_proba[class_idx] = probs[local_class_idx]
+                    if local_class_idx == argmax:
+                        prediction = class_
+                else:
+                    class_idx = class_
+                    class_proba[class_idx] = probs[0, local_class_idx]
+                    if class_proba[class_idx] > self.threshold:
+                        predictions.append(self.mlb.classes_[class_])
 
-            if self._should_early_terminate(
-                current_node=path[-1],
-                prediction=prediction,
-                score=score,
-            ):
-                break
+            if self.mlb is None:
+                if self._should_early_terminate(
+                    current_node=path[-1],
+                    prediction=prediction,
+                    score=score,
+                ):
+                    break
 
-            # Update current path
-            path.append(prediction)
-
-            clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
+                # Update current path
+                path.append(prediction)
+                clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
+            else:
+                clf = None
+                for prediction in predictions:
+                    pred_path, preds_prob = self._recursive_predict(x, prediction)
+                    path.append(prediction)
+                    if preds_prob is not None:
+                        class_proba += preds_prob
+                        path.extend(pred_path)
 
         return path, class_proba
 
