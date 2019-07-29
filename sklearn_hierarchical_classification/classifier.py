@@ -14,6 +14,7 @@ from sklearn.utils.multiclass import check_classification_targets
 from sklearn_hierarchical_classification.array import (
     apply_along_rows,
     apply_rollup_Xy,
+    apply_rollup_Xy_raw,
     extract_rows_csr,
     flatten_list,
     nnz_rows_ix,
@@ -38,16 +39,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     - Multi-label classification - Do we support classifying into more than a single target class/label
     - Mandatory / Non-mandatory leaf node prediction - Do we require that classification always results with
-      classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
+        classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
     - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
-      distinguish between three main modes of local classification:
+        distinguish between three main modes of local classification:
             * "One classifier per parent node" - where each non-leaf node can be fitted with a multi-class
-              classifier to predict which one of its child nodes is relevant for given example.
+                classifier to predict which one of its child nodes is relevant for given example.
             * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
-              returns a binary (or a probability) score indicating the fitness for that node and the current
-              example.
+                returns a binary (or a probability) score indicating the fitness for that node and the current
+                example.
             * Global / "big bang" classifiers - where a single classifier predicts the full path in the hierarchy
-              for a given example.
+                for a given example.
 
     The nomenclature used here is based on the framework outlined in [1].
 
@@ -62,7 +63,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         when building the classifier tree, the dictionary will be consulted and if a key is found matching
         a particular node, the base classifier pointed to in the dict will be used. Since this is most often
         useful for specifying classifiers on only a handlful of objects, a special 'DEFAULT' key can be used to
-        set the base classifier to use as a catch all.
+        set the base classifier to use as a 'catch all'.
         If not provided, a base estimator will be chosen by the framework using various meta-learning
         heuristics (WIP).
 
@@ -189,16 +190,17 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != self.root
         )
-        self.logger.debug("fit() - self.classes_ = %s", self.classes_)
 
         # Recursively build training feature sets for each node in graph
-        with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
-            self._recursive_build_features(X, y, node_id=self.root, progress=progress)
+        if not self.preprocessing:
+            with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
+                self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
         # Recursively train base classifiers
         with self._progress(total=self.n_classes_ + 1, desc="Training base classifiers") as progress:
             self._recursive_train_local_classifiers(X, y, node_id=self.root, progress=progress)
 
+        self.avglabs = np.mean(y.sum(1))
         return self
 
     def predict(self, X):
@@ -322,7 +324,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
-        # Build and store meta-features for node
+        # Build and store metafeatures for node
         self.graph_.node[node_id][METAFEATURES] = self._build_metafeatures(
             X=self.graph_.node[node_id]["X"],
             y=y,
@@ -478,14 +480,24 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        
         if self.preprocessing:
             if len(X_)>0:
                 clf.fit(X=X_, y=y_)
+                self.logger.debug(
+                "_train_local_classifier() - training node %s ",  # noqa:E501
+                node_id,
+                )
+                self.graph_.node[node_id][CLASSIFIER] = clf
+            else:                
+                self.logger.debug(
+                "_train_local_classifier() - could not train  node %s ",  # noqa:E501
+                node_id,
+                )
+                
         else:
             clf.fit(X=X_, y=y_)
-
-        self.graph_.node[node_id][CLASSIFIER] = clf
+            
+            self.graph_.node[node_id][CLASSIFIER] = clf
 
     def _recursive_predict(self, x, root):
         if CLASSIFIER not in self.graph_.node[root]:
@@ -496,17 +508,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            if hasattr(clf,"decision_function"):     
-                if self.preprocessing or self.mlb:           
+            if hasattr(clf,"decision_function"):
+                if self.preprocessing:
                     probs = clf.decision_function([x])
                     argmax = np.argmax(probs)
+                
                     score = probs[0,argmax]
 
-                else :
-                    probs = clf.predict_proba(x)[0]
-                
-                    argmax = np.argmax(probs)
-                
+                else:
+                    probs = clf.decision_function(x)
+                    argmax = np.argmax(probs)                
                     score = probs[argmax]
 
             else:
