@@ -119,6 +119,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting
         this value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
 
+    preprocessing : bool
+        Determines if the classifier has its own preprocessing (for text processing for example).
+
+    mlb : MultiLabelBinarizer
+        For Multilabel the used MultiLabelBinarizer for creating the y variable (important for giving classes back)
+
+    use_decision_function : bool
+        Tests fail when using decision_function, since they expect predict_proba to sum to 1. Use True here allows to receive different values which can be more interesting to compare between rows/samples.
+    
     Attributes
     ----------
     classes_ : array, shape = [`n_classes`]
