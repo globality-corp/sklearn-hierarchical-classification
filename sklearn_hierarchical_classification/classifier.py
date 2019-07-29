@@ -149,7 +149,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None):
+                 root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None,
+                 use_decision_function=False):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -161,6 +162,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.preprocessing = preprocessing
         self.mlb = mlb
         self.threshold = 0
+        self.use_decision_function = use_decision_function
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -222,7 +224,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         with self._progress(total=self.n_classes_ + 1, desc="Training base classifiers") as progress:
             self._recursive_train_local_classifiers(X, y, node_id=self.root, progress=progress)
 
-        self.avglabs = np.mean(y.sum(1))
+        # TODO: future feature, using the label cardinality to calculate threshold
+        if len(y.shape) == 2:
+            self.avglabs = np.mean(y.sum(1))
+
         return self
 
     def predict(self, X):
@@ -544,7 +549,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            if hasattr(clf, "decision_function"):
+            if hasattr(clf, "decision_function") and self.use_decision_function:
                 if self.preprocessing:
                     probs = clf.decision_function([x])
                     argmax = np.argmax(probs)
@@ -554,7 +559,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     probs = clf.decision_function(x)
                     argmax = np.argmax(probs)
                     score = probs[argmax]
-
             else:
                 probs = clf.predict_proba(x)[0]
                 argmax = np.argmax(probs)
@@ -565,6 +569,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 predictions = []
 
             # Report probabilities in terms of complete class hierarchy
+            if len(clf.classes_) == 1:
+                prediction = clf.classes_[0]
             for local_class_idx, class_ in enumerate(clf.classes_):
                 if self.mlb is None:
                     try:
@@ -579,10 +585,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                             path,
                         )
                         raise
-
-                    class_proba[class_idx] = probs[local_class_idx]
-                    if local_class_idx == argmax:
-                        prediction = class_
+                    if len(probs.shape) > 1 and probs.shape[0] == 1:
+                        class_proba[class_idx] = probs[0, local_class_idx]
+                        if local_class_idx == argmax:
+                            prediction = class_
+                    else:
+                        class_proba[class_idx] = probs[local_class_idx]
+                        if local_class_idx == argmax:
+                            prediction = class_
                 else:
                     class_idx = class_
                     class_proba[class_idx] = probs[0, local_class_idx]

@@ -48,6 +48,12 @@ Auto-generated documentation is provided via sphinx. To build / view:
 Documentation is published to GitHub pages from the `gh-pages` branch.
 If you are a contributor and need to update documentation, a good starting point for getting setup is [this tutorial](https://gohugo.io/hosting-and-deployment/hosting-on-github/#deployment-of-project-pages-from-docs-folder-on-master-branch).
 
+## Testing
+
+Install hamcrest and pytest:
+pip install PyHamcrest pytest
+
+
 
 ## Further Reading
 
