@@ -183,3 +183,8 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
+
+# -- Options for numpydoc
+
+# See issue: https://github.com/phn/pytpm/issues/3#issuecomment-12133978
+numpydoc_show_class_members = False

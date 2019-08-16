@@ -1,7 +1,11 @@
 {
-  "type": "python-library",
   "params": {
     "name": "sklearn-hierarchical-classification",
-    "docker-tag": "python:3.6.6-slim-stretch"
-  }
+    "pypi": {
+      "enabled": true,
+      "repository": "pypi"
+    }
+  },
+  "type": "python-library",
+  "version": "2.2.1"
 }

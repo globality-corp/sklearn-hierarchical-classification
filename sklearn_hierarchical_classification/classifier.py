@@ -38,16 +38,16 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     - Multi-label classification - Do we support classifying into more than a single target class/label
     - Mandatory / Non-mandatory leaf node prediction - Do we require that classification always results with
-        classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
+      classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
     - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
-        distinguish between three main modes of local classification:
+      distinguish between three main modes of local classification:
             * "One classifier per parent node" - where each non-leaf node can be fitted with a multi-class
-                classifier to predict which one of its child nodes is relevant for given example.
+              classifier to predict which one of its child nodes is relevant for given example.
             * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
-                returns a binary (or a probability) score indicating the fitness for that node and the current
-                example.
+              returns a binary (or a probability) score indicating the fitness for that node and the current
+              example.
             * Global / "big bang" classifiers - where a single classifier predicts the full path in the hierarchy
-                for a given example.
+              for a given example.
 
     The nomenclature used here is based on the framework outlined in [1].
 
@@ -62,7 +62,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         when building the classifier tree, the dictionary will be consulted and if a key is found matching
         a particular node, the base classifier pointed to in the dict will be used. Since this is most often
         useful for specifying classifiers on only a handlful of objects, a special 'DEFAULT' key can be used to
-        set the base classifier to use as a 'catch all'.
+        set the base classifier to use as a catch all.
         If not provided, a base estimator will be chosen by the framework using various meta-learning
         heuristics (WIP).
 
@@ -179,6 +179,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != self.root
         )
+        self.logger.debug("fit() - self.classes_ = %s", self.classes_)
 
         # Recursively build training feature sets for each node in graph
         with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
@@ -289,7 +290,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
-        # Build and store metafeatures for node
+        # Build and store meta-features for node
         self.graph_.node[node_id][METAFEATURES] = self._build_metafeatures(
             X=self.graph_.node[node_id]["X"],
             y=y,
@@ -435,7 +436,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
             # Report probabilities in terms of complete class hierarchy
             for local_class_idx, class_ in enumerate(clf.classes_):
-                class_idx = self.classes_.index(class_)
+                try:
+                    class_idx = self.classes_.index(class_)
+                except ValueError:
+                    # This may happen if the classes_ enumeration we construct during fit()
+                    # has a mismatch with the individual node classifiers' classes_.
+                    self.logger.error(
+                        "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
+                        class_,
+                        type(class_),
+                        path,
+                    )
+                    raise
+
                 class_proba[class_idx] = probs[local_class_idx]
                 if local_class_idx == argmax:
                     prediction = class_

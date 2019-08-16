@@ -112,7 +112,7 @@ def test_base_estimator_as_dict():
 
 
 def test_nontrivial_hierarchy_leaf_classification():
-    """Test that a nontrivial hierarchy leaf classification behaves as expected
+    r"""Test that a nontrivial hierarchy leaf classification behaves as expected
     under the default parameters.
 
     We build the following class hierarchy along with data from the handwritten digits dataset:
