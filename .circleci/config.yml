@@ -134,15 +134,15 @@ jobs:
           command: |
             echo "[distutils]" > ~/.pypirc
             echo "index-servers =" >> ~/.pypirc
-            echo "    jfrog " >> ~/.pypirc
+            echo "    pypi " >> ~/.pypirc
             echo >> ~/.pypirc
-            echo "[jfrog]" >> ~/.pypirc
-            echo "repository:https://globality.jfrog.io/globality/api/pypi/pypi" >> ~/.pypirc
-            echo "username:$JFROG_USERNAME" >> ~/.pypirc
-            echo "password:$JFROG_PASSWORD" >> ~/.pypirc
+            echo "[pypi]" >> ~/.pypirc
+            echo "repository:https://upload.pypi.org/legacy/" >> ~/.pypirc
+            echo "username:$PYPI_USERNAME" >> ~/.pypirc
+            echo "password:$PYPI_PASSWORD" >> ~/.pypirc
             echo >> ~/.pypirc
-            python setup.py register -r jfrog
-            python setup.py sdist upload -r jfrog
+            python setup.py register -r pypi
+            python setup.py sdist upload -r pypi
 
 workflows:
   version: 2
