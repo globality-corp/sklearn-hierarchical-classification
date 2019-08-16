@@ -3,7 +3,7 @@
     "name": "sklearn-hierarchical-classification",
     "pypi": {
       "enabled": true,
-      "repository": "jfrog"
+      "repository": "pypi"
     }
   },
   "type": "python-library",
