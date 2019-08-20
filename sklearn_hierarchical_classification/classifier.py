@@ -505,7 +505,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def _base_estimator_for(self, node_id):
         base_estimator = None
-        # if not self.base_estimator:
         if self.base_estimator is None:
             # No base estimator specified by user, try to pick best one
             base_estimator = self._make_base_estimator(node_id)
