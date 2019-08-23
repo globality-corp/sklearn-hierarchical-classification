@@ -26,7 +26,6 @@ setup(
     ],
     tests_require=[
         "coverage>=3.7.1",
-        "mock>=2.0.0",
         "PyHamcrest>=1.9.0",
     ],
 )
