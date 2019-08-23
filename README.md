@@ -25,7 +25,7 @@ Support for interactive development is built in to the `HierarchicalClassifier` 
 
     jupyter nbextension enable --py --sys-prefix widgetsnbextension
 
-You can then instantiate a classifier with the `interactive=True` flag set:
+You can then instantiate a classifier with the `progress_wrapper` parameter set to `tqdm_notebook`:
 
 ```python
 clf = HierarchicalClassifier(
