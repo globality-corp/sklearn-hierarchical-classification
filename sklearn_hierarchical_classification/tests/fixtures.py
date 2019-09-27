@@ -87,5 +87,75 @@ def make_classifier_and_data(
         class_hierarchy=class_hierarchy,
         **classifier_kwargs
     )
+    
+    return clf, (X, y)
+
+
+def make_classifier_and_data_own_preprocessing():
+    from sklearn.datasets import fetch_20newsgroups
+    from sklearn.preprocessing import MultiLabelBinarizer
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.svm import LinearSVC
+    from sklearn.multiclass import OneVsRestClassifier
+    from sklearn.pipeline import make_pipeline
+    
+    newsgroups_train = fetch_20newsgroups(subset='train')
+    X , Y= newsgroups_train.data, newsgroups_train.target
+
+    vectorizer = TfidfVectorizer(
+                strip_accents=None,
+                lowercase=True,
+                analyzer='word',
+                ngram_range=(1, 3),
+                max_df=1.0,
+                min_df=0.0,
+                binary=False,
+                use_idf=True,
+                smooth_idf=True,
+                sublinear_tf=True,
+                max_features=70000
+            )
+    hierarchy={}
+    hierarchy[ROOT]=["alt","comp","rec","misc","sci","soc","talk"]
+    hierarchy["alt"]=['alt.atheism']
+    hierarchy["comp"]= ['comp.graphics',
+                        'comp.os.ms-windows.misc',
+                        'comp.sys.ibm.pc.hardware',
+                        'comp.sys.mac.hardware',
+                        'comp.windows.x']
+    hierarchy["misc"]=[ 'misc.forsale']
+    hierarchy["rec"]=[ 'rec.autos',
+                      'rec.motorcycles',
+                      'rec.sport.baseball',
+                      'rec.sport.hockey']
+    hierarchy["sci"]= ['sci.crypt',
+                       'sci.electronics',
+                       'sci.med',
+                       'sci.space']
+    hierarchy["soc"]=[ 'soc.religion.christian']
+    hierarchy["talk"]=[ 'talk.politics.guns',
+                       'talk.politics.mideast',
+                       'talk.politics.misc',
+                       'talk.religion.misc']
+
+    class_hierarchy = hierarchy
+    
+    names = newsgroups_train.target_names
+    bclf = OneVsRestClassifier(LinearSVC())
+    base_estimator = make_pipeline(
+        vectorizer, bclf)
+    labels = [ [names[tk]]+[names[tk].split(".")[0]] for tk in Y]
+    mlb = MultiLabelBinarizer()
+    y=mlb.fit_transform(labels)
+    
+    clf = make_classifier(
+        base_estimator=base_estimator,
+        class_hierarchy=class_hierarchy,
+        algorithm="lcn",training_strategy= "siblings",
+        preprocessing=True,
+        mlb=mlb,
+        use_decision_function=True
+    )
+
 
     return clf, (X, y)
