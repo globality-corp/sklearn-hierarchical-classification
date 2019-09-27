@@ -2,7 +2,7 @@
 from setuptools import find_packages, setup
 
 project = "sklearn-hierarchical-classification"
-version = "1.0.0"
+version = "1.1.0"
 
 setup(
     name=project,
@@ -26,7 +26,6 @@ setup(
     ],
     tests_require=[
         "coverage>=3.7.1",
-        "mock>=2.0.0",
         "PyHamcrest>=1.9.0",
     ],
 )
