@@ -260,9 +260,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         for classification at a particular non-leaf node.
 
         """
-        if "X" in self.graph_.node[node_id]:
+        if "X" in self.graph_.nodes[node_id]:
             # Already visited this node in feature building phase
-            return self.graph_.node[node_id]["X"]
+            return self.graph_.nodes[node_id]["X"]
 
         self.logger.debug("Building features for node: %s", node_id)
         progress.update(1)
@@ -270,20 +270,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         if self.graph_.out_degree(node_id) == 0:
             # Leaf node
             indices = np.flatnonzero(y == node_id)
-            self.graph_.node[node_id]["X"] = self._build_features(
+            self.graph_.nodes[node_id]["X"] = self._build_features(
                 X=X,
                 y=y,
                 indices=indices,
             )
-            return self.graph_.node[node_id]["X"]
+            return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
-        self.graph_.node[node_id]["X"] = csr_matrix(
+        self.graph_.nodes[node_id]["X"] = csr_matrix(
             X.shape,
             dtype=X.dtype,
         )
         for child_node_id in self.graph_.successors(node_id):
-            self.graph_.node[node_id]["X"] += \
+            self.graph_.nodes[node_id]["X"] += \
                 self._recursive_build_features(
                     X=X,
                     y=y,
@@ -292,12 +292,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             )
 
         # Build and store meta-features for node
-        self.graph_.node[node_id][METAFEATURES] = self._build_metafeatures(
-            X=self.graph_.node[node_id]["X"],
+        self.graph_.nodes[node_id][METAFEATURES] = self._build_metafeatures(
+            X=self.graph_.nodes[node_id]["X"],
             y=y,
         )
 
-        return self.graph_.node[node_id]["X"]
+        return self.graph_.nodes[node_id]["X"]
 
     def _build_features(self, X, y, indices):
         X_ = extract_rows_csr(X, indices)
@@ -346,7 +346,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         )
 
     def _recursive_train_local_classifiers(self, X, y, node_id, progress):
-        if CLASSIFIER in self.graph_.node[node_id]:
+        if CLASSIFIER in self.graph_.nodes[node_id]:
             # Already trained classifier at this node, skip
             return
 
@@ -372,7 +372,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 )
                 return
 
-        X = self.graph_.node[node_id]["X"]
+        X = self.graph_.nodes[node_id]["X"]
         nnz_rows = nnz_rows_ix(X)
         X_ = X[nnz_rows, :]
 
@@ -421,10 +421,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf = self._base_estimator_for(node_id)
 
         clf.fit(X=X_, y=y_)
-        self.graph_.node[node_id][CLASSIFIER] = clf
+        self.graph_.nodes[node_id][CLASSIFIER] = clf
 
     def _recursive_predict(self, x, root):
-        clf = self.graph_.node[root][CLASSIFIER]
+        clf = self.graph_.nodes[root][CLASSIFIER]
         path = [root]
         path_proba = []
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
@@ -464,7 +464,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Update current path
             path.append(prediction)
 
-            clf = self.graph_.node[prediction].get(CLASSIFIER, None)
+            clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
 
         return path, class_proba
 
