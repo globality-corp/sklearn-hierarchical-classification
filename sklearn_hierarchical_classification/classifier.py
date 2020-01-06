@@ -275,6 +275,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 y=y,
                 indices=indices,
             )
+
             return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
@@ -282,6 +283,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             X.shape,
             dtype=X.dtype,
         )
+
         for child_node_id in self.graph_.successors(node_id):
             self.graph_.nodes[node_id]["X"] += \
                 self._recursive_build_features(
@@ -289,7 +291,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     y=y,
                     node_id=child_node_id,
                     progress=progress,
-            )
+                )
 
         # Build and store meta-features for node
         self.graph_.nodes[node_id][METAFEATURES] = self._build_metafeatures(
@@ -297,7 +299,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             y=y,
         )
 
-        return self.graph_.nodes[node_id]["X"]
+        # Append training data tagged with current (intermediate) node if any, and propagate up
+        if not np.issubdtype(type(node_id), y.dtype):
+            # If current intermediate node id type is different than that of targets array, dont bother.
+            # Nb. doing this check explicitly to avoid FutureWarning, see:
+            # https://stackoverflow.com/questions/40659212/futurewarning-elementwise-comparison-failed-returning-scalar-but-in-the-futur
+            return self.graph_.nodes[node_id]["X"]
+
+        indices = np.flatnonzero(y == node_id)
+        X_out = self.graph_.nodes[node_id]["X"] + self._build_features(
+            X=X,
+            y=y,
+            indices=indices,
+        )
+        return X_out
 
     def _build_features(self, X, y, indices):
         X_ = extract_rows_csr(X, indices)
@@ -382,8 +397,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             targets=[y[idx] for idx in nnz_rows],
         )
 
+        self.logger.debug("_train_local_classifier() - y: %s, nnz_rows: %s, y_rolled_up: %s", y, nnz_rows, y_rolled_up)
         if self.is_tree_:
             y_ = flatten_list(y_rolled_up)
+            self.logger.debug("_train_local_classifier() - graph is a tree, y_: %s", y_)
         else:
             # Class hierarchy graph is a DAG
             X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
@@ -527,7 +544,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return clone(base_estimator)
 
     def _make_base_estimator(self, node_id):
-        return LogisticRegression()
+        """Create a default base estimator if a more specific one was not chosen by user."""
+        return LogisticRegression(
+            solver="lbfgs",
+            max_iter=1000,
+            multi_class="multinomial",
+        )
 
     def _progress(self, total, desc, **kwargs):
         if self.progress_wrapper:
