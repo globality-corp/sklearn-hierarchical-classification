@@ -397,10 +397,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             targets=[y[idx] for idx in nnz_rows],
         )
 
-        self.logger.debug("_train_local_classifier() - y: %s, nnz_rows: %s, y_rolled_up: %s", y, nnz_rows, y_rolled_up)
         if self.is_tree_:
             y_ = flatten_list(y_rolled_up)
-            self.logger.debug("_train_local_classifier() - graph is a tree, y_: %s", y_)
         else:
             # Class hierarchy graph is a DAG
             X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
