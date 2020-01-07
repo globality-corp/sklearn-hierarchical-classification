@@ -16,6 +16,7 @@ from numpy import where
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils.estimator_checks import check_estimator
@@ -25,6 +26,7 @@ from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, R
 from sklearn_hierarchical_classification.tests.fixtures import (
     make_classifier,
     make_classifier_and_data,
+    make_clothing_graph_and_data,
     make_digits_dataset,
     make_classifier_and_data_own_preprocessing
 )
@@ -180,6 +182,37 @@ def test_nontrivial_hierarchy_leaf_classification():
     assert_that(accuracy, is_(close_to(1., delta=0.02)))
 
 
+def test_intermediate_node_training_data():
+    r"""Test that a training set which includes intermediate (non-leaf) nodes
+    as labels, as well as leaf nodes, constructs a correct classifier hierarchy
+
+    """
+    G, (X, y) = make_clothing_graph_and_data(root=ROOT)
+
+    # Add a new node rendering "Bottoms" an intermediate node with training data
+    G.add_edge("Bottoms", "Pants")
+
+    assert_that(any(yi == "Pants" for yi in y), is_(False))
+    assert_that(any(yi == "Bottoms" for yi in y), is_(True))
+
+    base_estimator = LogisticRegression(
+        solver="lbfgs",
+        max_iter=1_000,
+        multi_class="multinomial",
+    )
+
+    clf = HierarchicalClassifier(
+        base_estimator,
+        class_hierarchy=G,
+        algorithm="lcpn",
+        root=ROOT,
+    )
+    clf.fit(X, y)
+
+    # Ensure non-terminal node with training data is included in its' parent classifier classes
+    assert_that(clf.graph_.nodes()["Mens"]["classifier"].classes_, has_item("Bottoms"))
+
+
 def test_nmlnp_strategy_with_float_stopping_criteria():
     # since NMLNP results in a mix of intermediate and leaf nodes,
     # make sure they are all of same dtype (str)
@@ -252,8 +285,8 @@ def test_nmlnp_strategy_on_tree_with_dummy_classifier():
 
 
 def test_nmlnp_strategy_on_dag_with_dummy_classifier():
-    """Test classification works on a "deep" DAG when one of the nodes has out-degree 1 resulting in
-    creation of a "dummy" classifier at that node to triially predict its child.
+    """Test classification works on a "deep" DAG when one of the nodes has out-degree 1,
+    resulting in creation of a "dummy" classifier at that node to trivially predict its child.
 
     This test case actually tests a few more subtle edge cases:
 

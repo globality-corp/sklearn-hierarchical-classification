@@ -320,6 +320,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 y=y,
                 indices=indices,
             )
+
             return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
@@ -338,7 +339,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     y=y,
                     node_id=child_node_id,
                     progress=progress,
-            )
+                )
 
         # Build and store metafeatures for node
         self.graph_.nodes[node_id][METAFEATURES] = self._build_metafeatures(
@@ -346,7 +347,20 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             y=y,
         )
 
-        return self.graph_.nodes[node_id]["X"]
+        # Append training data tagged with current (intermediate) node if any, and propagate up
+        if not np.issubdtype(type(node_id), y.dtype):
+            # If current intermediate node id type is different than that of targets array, dont bother.
+            # Nb. doing this check explicitly to avoid FutureWarning, see:
+            # https://stackoverflow.com/questions/40659212/futurewarning-elementwise-comparison-failed-returning-scalar-but-in-the-futur
+            return self.graph_.nodes[node_id]["X"]
+
+        indices = np.flatnonzero(y == node_id)
+        X_out = self.graph_.nodes[node_id]["X"] + self._build_features(
+            X=X,
+            y=y,
+            indices=indices,
+        )
+        return X_out
 
     def _build_features(self, X, y, indices):
         if self.preprocessing:
@@ -657,7 +671,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return clone(base_estimator)
 
     def _make_base_estimator(self, node_id):
-        return LogisticRegression()
+        """Create a default base estimator if a more specific one was not chosen by user."""
+        return LogisticRegression(
+            solver="lbfgs",
+            max_iter=1000,
+            multi_class="multinomial",
+        )
 
     def _progress(self, total, desc, **kwargs):
         if self.progress_wrapper:
