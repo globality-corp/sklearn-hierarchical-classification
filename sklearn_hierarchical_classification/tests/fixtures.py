@@ -29,6 +29,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
     Returns
     -------
     G : dict of lists adjacency matrix format representing the class hierarchy
+
     """
     if n_leaf is None and n_intermediate is None:
         # No specific structure specified, use a general purpose graph generator
@@ -72,6 +73,10 @@ def make_classifier_and_data(
     class_hierarchy=None,
     **classifier_kwargs
 ):
+    """Create a classifier as well as a synthetic dataset, with optional support for
+    user-specific class hierarchy.
+
+    """
     X, y = make_blobs(
         n_samples=n_samples,
         n_features=n_features,
@@ -89,3 +94,29 @@ def make_classifier_and_data(
     )
 
     return clf, (X, y)
+
+
+def make_clothing_graph(root=ROOT):
+    """Create a mock hierarchy of clothing items."""
+    G = DiGraph()
+    G.add_edge(root, "Mens")
+    G.add_edge("Mens", "Shirts")
+    G.add_edge("Mens", "Bottoms")
+    G.add_edge("Mens", "Jackets")
+    G.add_edge("Mens", "Swim")
+
+    return G
+
+
+def make_clothing_graph_and_data(root=ROOT):
+    """Create a graph for hierarchical classification
+    of clothing items, along with mock training data.
+
+    """
+    G = make_clothing_graph(root)
+
+    labels = list(G.nodes() - [root])
+    y = np.random.choice(labels, size=50)
+    X = np.random.normal(size=(len(y), 10))
+
+    return G, (X, y)
