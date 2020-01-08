@@ -67,7 +67,7 @@ def multi_labeled(y_true, y_pred, graph):
     )
 
 
-def fill_ancestors(y, graph, copy=True):
+def fill_ancestors(y, graph, root, copy=True):
     """
     Compute the full ancestor set for y, where y is in binary multi-label format,
     e.g. as a matrix of 0-1.
@@ -83,6 +83,8 @@ def fill_ancestors(y, graph, copy=True):
 
     graph : the class hierarchy graph, given as a `networkx.DiGraph` instance
 
+    root : identifier of the (stub) root node of hierarchy
+
     copy : bool, whether to update the y array in-place. defaults to True.
 
     Returns
@@ -95,8 +97,8 @@ def fill_ancestors(y, graph, copy=True):
     y_ = y.copy() if copy else y
     paths = all_pairs_shortest_path_length(graph.reverse(copy=False))
     for target, distances in paths:
-        if target == ROOT:
-            # Our stub ROOT node, can skip
+        if target == root:
+            # Our stub root node, can skip
             continue
         ix_rows = np.where(y[:, target] > 0)[0]
         # all ancestors, except the last one which would be the root node
@@ -106,7 +108,7 @@ def fill_ancestors(y, graph, copy=True):
     return y_
 
 
-def h_precision_score(y_true, y_pred, class_hierarchy):
+def h_precision_score(y_true, y_pred, class_hierarchy, root=ROOT):
     """
     Calculate the micro-averaged hierarchical precision ("hR") metric based on
     given set of true class labels and predicated class labels, and the
@@ -140,8 +142,8 @@ def h_precision_score(y_true, y_pred, class_hierarchy):
         The computed (micro-averaged) hierarchical precision score.
 
     """
-    y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
-    y_pred_ = fill_ancestors(y_pred, graph=class_hierarchy)
+    y_true_ = fill_ancestors(y_true, graph=class_hierarchy, root=root)
+    y_pred_ = fill_ancestors(y_pred, graph=class_hierarchy, root=root)
 
     ix = np.where((y_true_ != 0) & (y_pred_ != 0))
 
@@ -151,7 +153,7 @@ def h_precision_score(y_true, y_pred, class_hierarchy):
     return true_positives / all_results
 
 
-def h_recall_score(y_true, y_pred, class_hierarchy):
+def h_recall_score(y_true, y_pred, class_hierarchy, root=ROOT):
     """
     Calculate the micro-averaged hierarchical recall ("hR") metric based on
     given set of true class labels and predicated class labels, and the
@@ -185,22 +187,18 @@ def h_recall_score(y_true, y_pred, class_hierarchy):
         The computed (micro-averaged) hierarchical recall score.
 
     """
-    y_true_ = fill_ancestors(y_true, graph=class_hierarchy)
-    y_pred_ = fill_ancestors(y_pred, graph=class_hierarchy)
+    y_true_ = fill_ancestors(y_true, graph=class_hierarchy, root=root)
+    y_pred_ = fill_ancestors(y_pred, graph=class_hierarchy, root=root)
 
     ix = np.where((y_true_ != 0) & (y_pred_ != 0))
 
     true_positives = len(ix[0])
     all_positives = np.count_nonzero(y_true_)
 
-    print("--------------------------------")
-    print("true_positives: ", true_positives)
-    print("all_positives: ", all_positives)
-
     return true_positives / all_positives
 
 
-def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1.):
+def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1., root=ROOT):
     """
     Calculate the micro-averaged hierarchical F-beta ("hF_{\beta}") metric based on
     given set of true class labels and predicated class labels, and the
@@ -237,6 +235,6 @@ def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1.):
         The computed (micro-averaged) hierarchical F-score.
 
     """
-    hP = h_precision_score(y_true, y_pred, class_hierarchy)
-    hR = h_recall_score(y_true, y_pred, class_hierarchy)
+    hP = h_precision_score(y_true, y_pred, class_hierarchy, root=root)
+    hR = h_recall_score(y_true, y_pred, class_hierarchy, root=root)
     return (1. + beta ** 2.) * hP * hR / (beta ** 2. * hP + hR)

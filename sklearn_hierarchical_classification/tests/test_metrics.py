@@ -1,10 +1,11 @@
 """Unit-tests for the evaluation metrics module."""
+import inflect
 from hamcrest import (
     assert_that,
     close_to,
     is_,
 )
-from networkx import DiGraph
+from networkx import DiGraph, relabel_nodes
 from parameterized import parameterized
 
 from sklearn_hierarchical_classification.constants import ROOT
@@ -16,7 +17,7 @@ from sklearn_hierarchical_classification.metrics import (
 )
 
 
-def graph_fixture():
+def graph_fixture(as_str=False):
     """Sets up our fixture class hierarchy graph for the metrics unit-tests.
     This class hierarchy looks like this (directed graph):
 
@@ -30,12 +31,11 @@ def graph_fixture():
                      |
                      6
 
-    # y_true: [[0, 4], [1, 3]]
-    # y_pred: [[4, 6], [1]]
-
-    Sum_P_Intersect_T = 3 + 1 = 4
-    Sum_P = 5 + 1 = 6
-    Sum_T = 4 + 2 = 6
+    Parameters
+    ----------
+    as_str : bool, default False
+        If set to true, will return graph with node ids converted to strings using
+        inflect library (e.g. 1 will be converted to the string literal 'one').
 
     """
     G = DiGraph()
@@ -48,10 +48,23 @@ def graph_fixture():
         (2, 5),
         (5, 6),
     ])
+
+    if as_str:
+        inflect_engine = inflect.engine()
+        relabel_nodes(
+            G,
+            {
+                node_id: inflect_engine.number_to_words(node_id)
+                for node_id in G.nodes()
+                if node_id != ROOT
+            },
+            copy=False,
+        )
+
     return G
 
 
-# Nb. the test cases are multi-label so each y is an iterable of labels for a single example
+# Nb. the test cases can be multi-label so each y is an iterable of labels for a single example
 METRICS_TEST_CASES = [
     # Test metrics for a single instance (labeled datapoint)
     # y_true: [[4]]
@@ -84,20 +97,50 @@ METRICS_TEST_CASES = [
         0.4,
         0.4,
     ),
+    # Test metrics for multiple instances (labeled datapoints) with multi-label ground truth, perfect match
+    # y_true: [[0, 4], [1, 3]]
+    # y_pred: [[0, 4], [1, 3]]
+    #
+    # Expected hR: 1.0
+    # Expected hP: 1.0
+    # Expected hF1: 1.0
+    (
+        graph_fixture(),
+        [[0, 4], [1, 3]],
+        [[0, 4], [1, 3]],
+        1.0,
+        1.0,
+        1.0,
+    ),
     # Test metrics for multiple instances (labeled datapoints) with multi-label ground truth
     # y_true: [[0, 4], [1, 3]]
     # y_pred: [[4, 6], [1]]
     #
-    # Expected hR: (3 + 1) / (5 + 1) = 0.8333
-    # Expected hP: (3 + 1) / (4 + 2) = 0.8333
-    # Expected hF1: 0.8333
+    # Expected hR: (3 + 1) / (5 + 1) = 0.666...
+    # Expected hP: (3 + 1) / (4 + 2) = 0.666...
+    # Expected hF1: 0.666...
     (
         graph_fixture(),
         [[0, 4], [1, 3]],
         [[4, 6], [1]],
-        0.8333,
-        0.8333,
-        0.8333,
+        0.6666,
+        0.6666,
+        0.6666,
+    ),
+    # Test metrics for multiple instances (labeled datapoints) with multi-label ground truth, string labels
+    # y_true: [["one", "two"], ["one"]]
+    # y_pred: [["one", "two"], ["one"]]
+    #
+    # Expected hR: 1.0
+    # Expected hP: 1.0
+    # Expected hF1: 1.0
+    (
+        graph_fixture(as_str=True),
+        [["one", "two"], ["one"]],
+        [["one", "two"], ["one"]],
+        1.0,
+        1.0,
+        1.0,
     ),
 ]
 

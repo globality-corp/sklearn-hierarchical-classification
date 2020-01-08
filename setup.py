@@ -26,6 +26,7 @@ setup(
     ],
     tests_require=[
         "coverage>=3.7.1",
+        "inflect>=4.0.0",
         "parameterized>=0.7.1",
         "PyHamcrest>=1.9.0",
     ],
