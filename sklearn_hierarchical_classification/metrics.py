@@ -52,7 +52,7 @@ def multi_labeled(y_true, y_pred, graph):
         for node in graph.nodes
         if node != ROOT
     ]
-    # Nb. we pass a (singleton) list-within-a-list as fit() expects an iterable of iterables
+    # Nb. we pass a (singleton) list-within-a-list as fit() expects an iterable-of-iterables
     mlb.fit([all_classes])
 
     node_label_mapping = {
@@ -83,6 +83,8 @@ def fill_ancestors(y, graph, copy=True):
 
     graph : the class hierarchy graph, given as a `networkx.DiGraph` instance
 
+    copy : bool, whether to update the y array in-place. defaults to True.
+
     Returns
     -------
     y_ : array-like, shape = [n_samples, n_classes].
@@ -106,7 +108,7 @@ def fill_ancestors(y, graph, copy=True):
 
 def h_precision_score(y_true, y_pred, class_hierarchy):
     """
-    Calculate the hierarchical precision ("hR") metric based on
+    Calculate the micro-averaged hierarchical precision ("hR") metric based on
     given set of true class labels and predicated class labels, and the
     class hierarchy graph.
 
@@ -151,7 +153,7 @@ def h_precision_score(y_true, y_pred, class_hierarchy):
 
 def h_recall_score(y_true, y_pred, class_hierarchy):
     """
-    Calculate the hierarchical recall ("hR") metric based on
+    Calculate the micro-averaged hierarchical recall ("hR") metric based on
     given set of true class labels and predicated class labels, and the
     class hierarchy graph.
 
@@ -191,12 +193,16 @@ def h_recall_score(y_true, y_pred, class_hierarchy):
     true_positives = len(ix[0])
     all_positives = np.count_nonzero(y_true_)
 
+    print("--------------------------------")
+    print("true_positives: ", true_positives)
+    print("all_positives: ", all_positives)
+
     return true_positives / all_positives
 
 
 def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1.):
     """
-    Calculate the hierarchical F-beta ("hF_{\beta}") metric based on
+    Calculate the micro-averaged hierarchical F-beta ("hF_{\beta}") metric based on
     given set of true class labels and predicated class labels, and the
     class hierarchy graph.
 
