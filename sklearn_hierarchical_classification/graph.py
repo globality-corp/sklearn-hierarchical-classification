@@ -8,10 +8,7 @@ from networkx import all_simple_paths
 
 
 def make_flat_hierarchy(targets, root):
-    """
-    Create a trivial (flat) hiearchy, linking all given targets to given root node.
-
-    """
+    """Create a trivial (flat) hiearchy, linking all given targets to given root node."""
     adjacency = defaultdict(list)
     for target in targets:
         adjacency[root].append(target)
@@ -19,8 +16,7 @@ def make_flat_hierarchy(targets, root):
 
 
 def rollup_nodes(graph, source, targets):
-    """
-    Perform a "roll-up" of given target nodes up to the nodes immediately below
+    """Perform a "roll-up" of given target nodes up to the nodes immediately below
     given source node in given graph.
 
     """
