@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 
 project = "sklearn-hierarchical-classification"
-version = "1.3.1"
+version = "1.3.2"
 
 
 setup(
