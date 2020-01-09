@@ -71,7 +71,7 @@ jobs:
           command: |
             eval $(aws ecr get-login --no-include-email)
             globality-build build-gen local
-            globality-build docker --repo python-library
+            globality-build docker-build-push --repo python-library
 
   test:
     <<: *defaults
