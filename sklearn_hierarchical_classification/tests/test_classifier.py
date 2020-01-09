@@ -14,9 +14,9 @@ from hamcrest import (
 from networkx import DiGraph
 from numpy import where
 from sklearn import svm
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils.estimator_checks import check_estimator

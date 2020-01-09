@@ -1,10 +1,6 @@
 """Unit-tests for the evaluation metrics module."""
 import inflect
-from hamcrest import (
-    assert_that,
-    close_to,
-    is_,
-)
+from hamcrest import assert_that, close_to, is_
 from networkx import DiGraph, relabel_nodes
 from parameterized import parameterized
 

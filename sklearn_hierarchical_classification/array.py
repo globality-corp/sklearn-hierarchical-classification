@@ -2,7 +2,7 @@
 from itertools import chain
 
 import numpy as np
-from scipy.sparse import issparse, csr_matrix
+from scipy.sparse import csr_matrix, issparse
 
 
 def flatten_list(lst):
