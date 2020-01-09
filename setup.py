@@ -5,7 +5,7 @@ from setuptools import find_packages, setup
 
 
 project = "sklearn-hierarchical-classification"
-version = "1.3.0"
+version = "1.3.1"
 
 
 this_directory = path.abspath(path.dirname(__file__))
