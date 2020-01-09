@@ -14,7 +14,7 @@
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:2019.41.70
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2020.1.11
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -28,7 +28,7 @@ defaults: &defaults
 deploy_defaults: &deploy_defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:2019.41.70
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2020.1.11
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -141,14 +141,10 @@ jobs:
             echo "username:$PYPI_USERNAME" >> ~/.pypirc
             echo "password:$PYPI_PASSWORD" >> ~/.pypirc
             echo >> ~/.pypirc
+            version=$(cat .bumpversion.cfg | awk '/current_version / {print $3}')
             python setup.py register -r pypi
             python setup.py sdist
             twine upload --repository pypi dist/sklearn-hierarchical-classification-${version}.tar.gz
-            version=$(python setup.py --version)
-            globality-build dependency-update \
-                --package-name sklearn_hierarchical_classification \
-                --version $version \
-                --language python
 
 workflows:
   version: 2

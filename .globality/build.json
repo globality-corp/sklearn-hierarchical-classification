@@ -1,10 +1,15 @@
 {
   "params": {
+    "isort": {
+      "known_third_party": [
+        "inflect"
+      ]
+    },
     "name": "sklearn-hierarchical-classification",
     "pypi": {
       "repository": "pypi"
     }
   },
   "type": "python-library",
-  "version": "2019.23.2"
+  "version": "2020.1.11"
 }
