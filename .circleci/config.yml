@@ -14,7 +14,7 @@
 defaults: &defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:2.0.0
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2019.41.70
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -28,7 +28,7 @@ defaults: &defaults
 deploy_defaults: &deploy_defaults
   working_directory: ~/repo
   docker:
-    - image: ${AWS_ECR_DOMAIN}/globality-build:2.0.0
+    - image: ${AWS_ECR_DOMAIN}/globality-build:2019.41.70
       aws_auth:
         aws_access_key_id: ${AWS_ACCESS_KEY_ID}
         aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
@@ -70,8 +70,8 @@ jobs:
           # install dependencies for loading ecs task definitions
           command: |
             eval $(aws ecr get-login --no-include-email)
-            globality-build docker-base --repo python-library
-            globality-build docker --repo python-library
+            globality-build build-gen local
+            globality-build docker-build-push --repo python-library
 
   test:
     <<: *defaults
