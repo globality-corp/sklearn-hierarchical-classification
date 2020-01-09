@@ -25,9 +25,9 @@ if [ "$1" = "test" ]; then
         .[test] nose mock PyHamcrest coverage
     exec nosetests ${NAME}
 elif [ "$1" = "lint" ]; then
-    # Install standard linting dependencies; YMMV
-    pip --quiet install \
-        .[lint] flake8 flake8-print flake8-logging-format
+   # Install standard linting dependencies; YMMV
+   pip --quiet install \
+       .[lint] flake8 flake8-print flake8-logging-format flake8-isort
     exec flake8 ${NAME}
 elif [ "$1" = "typehinting" ]; then
     # Install standard type-linting dependencies
