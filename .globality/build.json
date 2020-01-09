@@ -2,10 +2,9 @@
   "params": {
     "name": "sklearn-hierarchical-classification",
     "pypi": {
-      "enabled": true,
       "repository": "pypi"
     }
   },
   "type": "python-library",
-  "version": "2.2.1"
+  "version": "2019.23.2"
 }
