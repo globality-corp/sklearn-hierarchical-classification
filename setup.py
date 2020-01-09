@@ -28,10 +28,12 @@ setup(
     setup_requires=[
         "nose>=1.3.7",
     ],
-    tests_require=[
-        "coverage>=3.7.1",
-        "inflect>=4.0.0",
-        "parameterized>=0.7.1",
-        "PyHamcrest>=1.9.0",
-    ],
+    extras_require={
+        "test": [
+            "PyHamcrest>=1.9.0",
+            "coverage>=3.7.1",
+            "inflect>=4.0.0",
+            "parameterized>=0.7.1",
+        ],
+    },
 )
