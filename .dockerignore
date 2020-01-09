@@ -1,6 +1,6 @@
 *
 !sklearn_hierarchical_classification
-sklearn_hierarchical_classification/test*
+sklearn_hierarchical_classification/tests
 !dist/*-none-any.whl
 !entrypoint.sh
 !MANIFEST.in

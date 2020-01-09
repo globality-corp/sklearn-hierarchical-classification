@@ -1,9 +1,5 @@
 import numpy as np
-from hamcrest import (
-    assert_that,
-    equal_to,
-    is_,
-)
+from hamcrest import assert_that, equal_to, is_
 
 from sklearn_hierarchical_classification.array import apply_rollup_Xy
 

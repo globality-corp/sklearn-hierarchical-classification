@@ -1,10 +1,6 @@
 """Unit-tests for the evaluation metrics module."""
-import inflect
-from hamcrest import (
-    assert_that,
-    close_to,
-    is_,
-)
+from hamcrest import assert_that, close_to, is_
+from inflect import engine
 from networkx import DiGraph, relabel_nodes
 from parameterized import parameterized
 
@@ -50,7 +46,7 @@ def graph_fixture(as_str=False):
     ])
 
     if as_str:
-        inflect_engine = inflect.engine()
+        inflect_engine = engine()
         relabel_nodes(
             G,
             {

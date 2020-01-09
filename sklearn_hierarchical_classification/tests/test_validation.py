@@ -1,9 +1,5 @@
 """Test validation logic."""
-from hamcrest import (
-    assert_that,
-    calling,
-    raises,
-)
+from hamcrest import assert_that, calling, raises
 
 from sklearn_hierarchical_classification.tests.fixtures import make_classifier_and_data
 

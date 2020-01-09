@@ -51,9 +51,9 @@ ENV LC_ALL en_US.UTF-8
 # These are enough to install dependencies and have a stable base layer
 # when source code changes.
 
-COPY MANIFEST.in setup.cfg setup.py /src/
+COPY README.md MANIFEST.in setup.cfg setup.py /src/
 
-RUN pip install --upgrade --extra-index-url ${EXTRA_INDEX_URL} /src/ && \
+RUN pip install --no-cache-dir --upgrade --extra-index-url ${EXTRA_INDEX_URL} /src/ && \
     apt-get remove --purge -y ${BUILD_PACKAGES} && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*

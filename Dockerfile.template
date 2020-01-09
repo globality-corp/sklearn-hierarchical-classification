@@ -20,7 +20,7 @@ FROM <REPO>/python-library:base-<SHA1>
 # to customize the `dev` and `test` targets.
 
 ENV NAME sklearn_hierarchical_classification
-COPY README.md entrypoint.sh /src/
+COPY entrypoint.sh /src/
 ENTRYPOINT ["./entrypoint.sh"]
 
 # Install source
@@ -32,8 +32,8 @@ ENTRYPOINT ["./entrypoint.sh"]
 
 ARG BUILD_NUM
 ARG SHA1
-ENV SKLEARN-HIERARCHICAL-CLASSIFICATION__BUILD_INFO_CONVENTION__BUILD_NUM ${BUILD_NUM}
-ENV SKLEARN-HIERARCHICAL-CLASSIFICATION__BUILD_INFO_CONVENTION__SHA1 ${SHA1}
+ENV SKLEARN_HIERARCHICAL_CLASSIFICATION__BUILD_INFO_CONVENTION__BUILD_NUM ${BUILD_NUM}
+ENV SKLEARN_HIERARCHICAL_CLASSIFICATION__BUILD_INFO_CONVENTION__SHA1 ${SHA1}
 COPY $NAME /src/$NAME/
-RUN pip install --extra-index-url $EXTRA_INDEX_URL -e .
+RUN pip install --no-cache-dir --extra-index-url $EXTRA_INDEX_URL -e .
 

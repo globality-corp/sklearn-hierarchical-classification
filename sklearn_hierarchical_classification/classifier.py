@@ -5,11 +5,21 @@ Hierarchical classifier interface.
 import numpy as np
 from networkx import DiGraph, is_tree
 from scipy.sparse import csr_matrix
-from sklearn.base import BaseEstimator, ClassifierMixin, MetaEstimatorMixin, clone
+from sklearn.base import (
+    BaseEstimator,
+    ClassifierMixin,
+    MetaEstimatorMixin,
+    clone,
+)
 from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.utils.validation import check_array, check_consistent_length, check_is_fitted, check_X_y
 from sklearn.utils.multiclass import check_classification_targets
+from sklearn.utils.validation import (
+    check_array,
+    check_consistent_length,
+    check_is_fitted,
+    check_X_y,
+)
 
 from sklearn_hierarchical_classification.array import (
     apply_along_rows,
@@ -18,7 +28,12 @@ from sklearn_hierarchical_classification.array import (
     flatten_list,
     nnz_rows_ix,
 )
-from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, METAFEATURES, ROOT
+from sklearn_hierarchical_classification.constants import (
+    CLASSIFIER,
+    DEFAULT,
+    METAFEATURES,
+    ROOT,
+)
 from sklearn_hierarchical_classification.decorators import logger
 from sklearn_hierarchical_classification.dummy import DummyProgress
 from sklearn_hierarchical_classification.graph import make_flat_hierarchy, rollup_nodes
