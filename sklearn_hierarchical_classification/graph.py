@@ -4,8 +4,8 @@ Graph processing helpers.
 """
 from collections import defaultdict
 
-import numpy as np
 from networkx import all_simple_paths
+from numpy import ndarray
 
 
 def make_flat_hierarchy(targets, root):
@@ -24,7 +24,7 @@ def rollup_nodes(graph, source, targets, mlb=None):
     result_cache = {}
     resultset = []
     for node_id in targets:
-        if type(node_id) is np.ndarray:
+        if type(node_id) == ndarray:
             res_row = []
             for lab in node_id.nonzero()[0]:
                 if lab not in result_cache:
