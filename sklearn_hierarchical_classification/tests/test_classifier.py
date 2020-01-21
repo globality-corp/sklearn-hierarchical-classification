@@ -83,7 +83,6 @@ def test_trivial_hierarchy_classification():
 
 def test_trivial_hierarchy_classification_own_preprocessing_integration():
     """Test that an integration with 20news groups and own preprocessing"""
-    print("integration test with 20news")
     clf, (X, y) = make_classifier_and_data_own_preprocessing()
 
     X_train, X_test, y_train, y_test = train_test_split(
