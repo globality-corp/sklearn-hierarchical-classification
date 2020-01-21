@@ -48,7 +48,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     Hierarchical classification deals with the scenario where our target classes have
     inherent structure that can be represented as a tree or a directed acyclic graph (DAG),
     with nodes representing the target classes themselves, and edges representing their inter-relatedness,
-    e.g 'IS A' semantics.
+    e.g "IS A" semantics.
 
     Within this general framework, several distinctions can be made based on a few key modelling decisions:
 
@@ -70,15 +70,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     Parameters
     ----------
     base_estimator : classifier object, function, dict, or None
-        A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
+        A scikit-learn compatible classifier object implementing "fit" and "predict_proba" to be used as the
         base classifier.
         If a callable function is given, it will be called to evaluate which classifier to instantiate for
         current node. The function will be called with the current node and the graph instance.
         Alternatively, a dictionary mapping classes to classifier objects can be given. In this case,
         when building the classifier tree, the dictionary will be consulted and if a key is found matching
         a particular node, the base classifier pointed to in the dict will be used. Since this is most often
-        useful for specifying classifiers on only a handlful of objects, a special 'DEFAULT' key can be used to
-        set the base classifier to use as a 'catch all'.
+        useful for specifying classifiers on only a handlful of objects, a special "DEFAULT" key can be used to
+        set the base classifier to use as a "catch all".
         If not provided, a base estimator will be chosen by the framework using various meta-learning
         heuristics (WIP).
 
@@ -106,11 +106,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     training_strategy: "exclusive", "less_exclusive", "inclusive", "less_inclusive",
                        "siblings", "exclusive_siblings", or None.
-        This parameter is used when the 'algorithm' parameter is to set to "lcn", and dictates how training data
+        This parameter is used when the "algorithm" parameter is to set to "lcn", and dictates how training data
         is constructed for training the binary classifier at each node.
 
     stopping_criteria: function, float, or None.
-        This parameter is used when the 'prediction_depth' parameter is set to "nmlnp", and is used to evaluate
+        This parameter is used when the "prediction_depth" parameter is set to "nmlnp", and is used to evaluate
         at a given node whether classification should terminate or continue further down the hierarchy.
 
         When set to a float, the prediction will stop if the reported confidence at current classifier is below
@@ -126,7 +126,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         The unique identifier for the qualified root node in the class hierarchy. The hierarchical classifier
         assumes that the given class hierarchy graph is a rooted DAG, e.g has a single designated root node
         of in-degree 0. This node is associated with a special identifier which defaults to a framework provided one,
-        but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there's no need
+        but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there"s no need
         for injecting an artifical root node.
 
     progress_wrapper : progress generator or None
@@ -195,18 +195,22 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         if self.preprocessing:
+            # In pre-processing mode, only validate targets (y) format and
+            # that targets and training data (X) are of same cardinality, since
+            # X will in general not be a 2D feature matrix, but rather the raw training examples,
+            # e.g. text snippets or images.
+            X, y = check_X_y(X, y, accept_sparse="csr")
             y = check_array(
                 y,
-                'csr',
+                accept_sparse="csr",
                 force_all_finite=True,
                 ensure_2d=False,
                 dtype=None,
             )
-
             if len(X) != y.shape[0]:
                 raise ValueError("bad input shape: len(X) != y.shape[0]")
         else:
-            X, y = check_X_y(X, y, accept_sparse='csr')
+            X, y = check_X_y(X, y, accept_sparse="csr")
 
         check_classification_targets(y)
         if sample_weight is not None:
@@ -225,18 +229,14 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             if node != self.root
         )
 
-        # Recursively build training feature sets for each node in graph
         if not self.preprocessing:
+            # When not in pre-processing mode, recursively build training feature sets for each node in graph
             with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
                 self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
         # Recursively train base classifiers
         with self._progress(total=self.n_classes_ + 1, desc="Training base classifiers") as progress:
             self._recursive_train_local_classifiers(X, y, node_id=self.root, progress=progress)
-
-        # TODO: future feature, using the label cardinality to calculate threshold
-        if len(y.shape) == 2:
-            self.avglabs = np.mean(y.sum(1))
 
         return self
 
@@ -384,7 +384,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     def _build_features(self, X, y, indices):
         if self.preprocessing:
-            X_ = [X[tk] for tk in indices]
+            X_ = [X[ix] for ix in indices]
         else:
             X_ = extract_rows_csr(X, indices)
 
@@ -419,8 +419,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         -------
         metafeatures : dict
             Python dictionary of meta-features. The following meta-features are computed by default:
-            * 'n_samples' - Number of samples used to train classifier at given node.
-            * 'n_targets' - Number of targets (classes) to classify into at given node.
+            * "n_samples" - Number of samples used to train classifier at given node.
+            * "n_targets" - Number of targets (classes) to classify into at given node.
 
         """
         if self.preprocessing:
@@ -512,7 +512,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if not self.preprocessing and X_.shape[0] == 0:
             # No training data could be materialized for current node
-            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            # TODO: support a "strict" mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train, classification in branch will terminate at node %s",  # noqa:E501
                 node_id,
@@ -520,7 +520,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return
         elif num_targets == 1:
             # Training data could be materialized for only a single target at current node
-            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            # TODO: support a "strict" mode flag to explicitly enable/disable fallback logic here?
             constant = y_[0]
             self.logger.debug(
                 "_train_local_classifier() - only a single target (child node) available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
@@ -588,7 +588,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                         class_idx = self.classes_.index(class_)
                     except ValueError:
                         # This may happen if the classes_ enumeration we construct during fit()
-                        # has a mismatch with the individual node classifiers' classes_.
+                        # has a mismatch with the individual node classifiers" classes_.
                         self.logger.error(
                             "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
                             class_,
@@ -636,8 +636,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         Evaluate whether classification should terminate at given step.
 
-        This depends on whether early-termination, as dictated by the the 'prediction_depth'
-          and 'stopping_criteria' parameters, is triggered.
+        This depends on whether early-termination, as dictated by the the "prediction_depth"
+          and "stopping_criteria" parameters, is triggered.
 
         """
         if self.prediction_depth != "nmlnp":

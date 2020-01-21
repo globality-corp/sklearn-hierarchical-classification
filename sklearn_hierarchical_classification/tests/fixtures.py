@@ -142,6 +142,10 @@ def make_classifier_and_data(
 
 
 def make_classifier_and_data_own_preprocessing():
+    """Create data set and classifier for testing a multi-label
+    classification scenario with a preprocessing pipeline.
+
+    """
     newsgroups_train = fetch_20newsgroups(subset="train")
     X, Y = newsgroups_train.data, newsgroups_train.target
     class_hierarchy = make_newsgroups_hierarchy()
@@ -161,11 +165,11 @@ def make_classifier_and_data_own_preprocessing():
         max_features=70000
     )
     bclf = OneVsRestClassifier(LinearSVC())
-    base_estimator = make_pipeline(
-        vectorizer, bclf)
+    base_estimator = make_pipeline(vectorizer, bclf)
+
     labels = [
-        [names[tk]] + [names[tk].split(".")[0]]
-        for tk in Y
+        [names[target]] + [names[target].split(".")[0]]
+        for target in Y
     ]
     mlb = MultiLabelBinarizer()
     y = mlb.fit_transform(labels)
@@ -173,8 +177,6 @@ def make_classifier_and_data_own_preprocessing():
     clf = make_classifier(
         base_estimator=base_estimator,
         class_hierarchy=class_hierarchy,
-        algorithm="lcn",
-        training_strategy="siblings",
         preprocessing=True,
         mlb=mlb,
         use_decision_function=True
