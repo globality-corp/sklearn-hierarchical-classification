@@ -160,7 +160,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
                  root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None,
-                 use_decision_function=False):
+                 use_decision_function=False, threshold=0.):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -171,7 +171,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.progress_wrapper = progress_wrapper
         self.preprocessing = preprocessing
         self.mlb = mlb
-        self.threshold = 0
+        self.threshold = threshold
         self.use_decision_function = use_decision_function
 
     def fit(self, X, y=None, sample_weight=None):
@@ -539,7 +539,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     "_train_local_classifier() - training node %s ",  # noqa:E501
                     node_id,
                 )
-                self.graph_.node[node_id][CLASSIFIER] = clf
+                self.graph_.nodes[node_id][CLASSIFIER] = clf
             else:
                 self.logger.debug(
                     "_train_local_classifier() - could not train  node %s ",  # noqa:E501
