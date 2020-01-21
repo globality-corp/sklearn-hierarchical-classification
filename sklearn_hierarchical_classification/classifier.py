@@ -141,8 +141,9 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         For Multilabel the used MultiLabelBinarizer for creating the y variable (important for giving classes back)
 
     use_decision_function : bool
-        Tests fail when using decision_function, since they expect predict_proba to sum to 1. Use True here allows to receive different values which can be more interesting to compare between rows/samples.
-    
+        Tests fail when using decision_function, since they expect predict_proba to sum to 1.
+        Use True here allows to receive different values which can be more interesting to compare between rows/samples.
+
     Attributes
     ----------
     classes_ : array, shape = [`n_classes`]
@@ -549,9 +550,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             clf.fit(X=X_, y=y_)
             self.graph_.nodes[node_id][CLASSIFIER] = clf
 
-    def _recursive_predict(self, x, root):
+    def _recursive_predict(self, x, root):  # noqa:C901 TODO: refactor
         if CLASSIFIER not in self.graph_.nodes[root]:
             return None, None
+
         clf = self.graph_.nodes[root][CLASSIFIER]
         path = [root]
         path_proba = []

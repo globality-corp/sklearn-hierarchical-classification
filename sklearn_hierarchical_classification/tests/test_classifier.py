@@ -26,9 +26,9 @@ from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, R
 from sklearn_hierarchical_classification.tests.fixtures import (
     make_classifier,
     make_classifier_and_data,
+    make_classifier_and_data_own_preprocessing,
     make_clothing_graph_and_data,
     make_digits_dataset,
-    make_classifier_and_data_own_preprocessing
 )
 from sklearn_hierarchical_classification.tests.matchers import matches_graph
 
@@ -95,13 +95,10 @@ def test_trivial_hierarchy_classification_own_preprocessing_integration():
 
     clf.fit(X_train, y_train)
     y_pred = clf.predict_proba(X_test)
-    import numpy as np
-    y_pred[np.where(y_pred==0)]=-1
-    accuracy = accuracy_score(y_test, y_pred>-0.2)
-    print("accuracy",accuracy)
+    y_pred[where(y_pred == 0)] = -1
+    accuracy = accuracy_score(y_test, y_pred > -0.2)
 
     assert_that(accuracy, is_(close_to(.8, delta=0.05)))
-    print("finished integration test")
 
 
 def test_base_estimator_as_dict():
@@ -328,4 +325,3 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     y_pred = clf.predict(X_test)
 
     assert_that(list(y_pred), has_item("3a"))
-

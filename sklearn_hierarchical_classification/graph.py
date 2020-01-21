@@ -4,9 +4,8 @@ Graph processing helpers.
 """
 from collections import defaultdict
 
-from networkx import all_simple_paths
-
 import numpy as np
+from networkx import all_simple_paths
 
 
 def make_flat_hierarchy(targets, root):

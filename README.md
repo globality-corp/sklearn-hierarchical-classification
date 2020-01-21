@@ -19,6 +19,15 @@ To install, simply install this package via pip into your desired virtualenv, e.
 See [examples/](./examples/) for usage examples.
 
 
+## Testing
+
+To run the included unit-tests, install the test dependencies and then invoke using `nose`:
+
+    pip install -e '.[test]'
+    pip install nose
+    nosetests
+
+
 ### Jupyter notebooks
 
 Support for interactive development is built in to the `HierarchicalClassifier` class. This will enable progress bars (using the excellent [tqdm](https://pypi.python.org/pypi/tqdm) library) in various places during training and may otherwise enable more visibility into the classifier which is useful during interactive use. To enable this make sure widget extensions are enabled by running:
@@ -47,12 +56,6 @@ Auto-generated documentation is provided via sphinx. To build / view:
 
 Documentation is published to GitHub pages from the `gh-pages` branch.
 If you are a contributor and need to update documentation, a good starting point for getting setup is [this tutorial](https://gohugo.io/hosting-and-deployment/hosting-on-github/#deployment-of-project-pages-from-docs-folder-on-master-branch).
-
-## Testing
-
-Install hamcrest and pytest:
-pip install PyHamcrest pytest
-
 
 
 ## Further Reading
