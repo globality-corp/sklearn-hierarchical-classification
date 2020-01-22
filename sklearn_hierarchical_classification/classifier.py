@@ -137,12 +137,17 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     preprocessing : bool
         Determines if the classifier has its own preprocessing (for text processing for example).
 
-    mlb : MultiLabelBinarizer
-        For Multilabel the used MultiLabelBinarizer for creating the y variable (important for giving classes back)
+    mlb : MultiLabelBinarizer or None
+        For multi-label classification, the MultiLabelBinarizer instance that was used for creating the y variable.
+
+    mlb_prediction_threshold : float
+        For multi-label prediction tasks (when `mlb` is set to a MultiLabelBinarizer instance), can define a prediction
+        score threshold to use for considering a label to be a prediction. Defaults to zero.
 
     use_decision_function : bool
-        Tests fail when using decision_function, since they expect predict_proba to sum to 1.
-        Use True here allows to receive different values which can be more interesting to compare between rows/samples.
+        Some classifiers (e.g. sklearn.svm.SVC) expose a `.decision_function()` method which would take in the
+        feature matrix X and return a set of per-sample scores, corresponding to each label. Setting this to True
+        would attempt to use this method when it is exposed by the base classifier.
 
     Attributes
     ----------
@@ -160,7 +165,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
                  algorithm="lcpn", training_strategy=None, stopping_criteria=None,
                  root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None,
-                 use_decision_function=False, threshold=0.):
+                 mlb_prediction_threshold=0., use_decision_function=False):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -171,7 +176,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.progress_wrapper = progress_wrapper
         self.preprocessing = preprocessing
         self.mlb = mlb
-        self.threshold = threshold
+        self.mlb_prediction_threshold = mlb_prediction_threshold
         self.use_decision_function = use_decision_function
 
     def fit(self, X, y=None, sample_weight=None):
@@ -199,7 +204,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # that targets and training data (X) are of same cardinality, since
             # X will in general not be a 2D feature matrix, but rather the raw training examples,
             # e.g. text snippets or images.
-            X, y = check_X_y(X, y, accept_sparse="csr")
             y = check_array(
                 y,
                 accept_sparse="csr",
@@ -560,7 +564,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            if hasattr(clf, "decision_function") and self.use_decision_function:
+            if self.use_decision_function and hasattr(clf, "decision_function"):
                 if self.preprocessing:
                     probs = clf.decision_function([x])
                     argmax = np.argmax(probs)
@@ -582,8 +586,15 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Report probabilities in terms of complete class hierarchy
             if len(clf.classes_) == 1:
                 prediction = clf.classes_[0]
+
             for local_class_idx, class_ in enumerate(clf.classes_):
-                if self.mlb is None:
+                if self.mlb:
+                    # when we have a multi-label binarizer
+                    class_idx = class_
+                    class_proba[class_idx] = probs[0, local_class_idx]
+                    if class_proba[class_idx] > self.mlb_prediction_threshold:
+                        predictions.append(self.mlb.classes_[class_])
+                else:
                     try:
                         class_idx = self.classes_.index(class_)
                     except ValueError:
@@ -604,11 +615,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                         class_proba[class_idx] = probs[local_class_idx]
                         if local_class_idx == argmax:
                             prediction = class_
-                else:
-                    class_idx = class_
-                    class_proba[class_idx] = probs[0, local_class_idx]
-                    if class_proba[class_idx] > self.threshold:
-                        predictions.append(self.mlb.classes_[class_])
 
             if self.mlb is None:
                 if self._should_early_terminate(
