@@ -24,23 +24,22 @@ def rollup_nodes(graph, source, targets, mlb=None):
     result_cache = {}
     resultset = []
     for node_id in targets:
-        if type(node_id) == ndarray:
-            res_row = []
-            for lab in node_id.nonzero()[0]:
-                if lab not in result_cache:
-                    result_cache[lab] = list(all_simple_paths(G=graph, source=source, target=mlb.classes_[lab]))
-
-                all_paths = result_cache[lab]
-
-                res_row.extend([
+        if mlb and type(node_id) == ndarray:
+            # multi-label binarizer was passed and node_id is an array, perform a roll-up
+            # for multi-label targets.
+            result_row = []
+            for label in node_id.nonzero()[0]:
+                if label not in result_cache:
+                    result_cache[label] = list(all_simple_paths(G=graph, source=source, target=mlb.classes_[label]))
+                all_paths = result_cache[label]
+                result_row.extend([
                     path[1]
                     for path in all_paths
                 ])
-            resultset.append(res_row)
+            resultset.append(result_row)
         else:
             if node_id not in result_cache:
                 result_cache[node_id] = list(all_simple_paths(G=graph, source=source, target=node_id))
-
             all_paths = result_cache[node_id]
             resultset.append([
                 path[1]
