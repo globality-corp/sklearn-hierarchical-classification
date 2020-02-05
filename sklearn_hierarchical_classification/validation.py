@@ -1,6 +1,7 @@
 """Validation helpers."""
 from sklearn_hierarchical_classification.constants import (
     VALID_ALGORITHM,
+    VALID_FEATURE_EXTRACTION,
     VALID_PREDICTION_DEPTH,
     VALID_TRAINING_STRATEGY,
 )
@@ -59,6 +60,13 @@ class ParameterValidator(object):
         )):
             raise TypeError(
                 """'stopping_criteria' must be set to a float or a callable."""
+            )
+
+        if self.feature_extraction not in VALID_FEATURE_EXTRACTION:
+            raise TypeError(
+                "'feature_extraction' must be set to one of: {}.".format(
+                    ", ".join(VALID_FEATURE_EXTRACTION),
+                )
             )
 
 

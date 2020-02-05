@@ -141,7 +141,7 @@ def make_classifier_and_data(
     return clf, (X, y)
 
 
-def make_classifier_and_data_own_preprocessing():
+def make_mlb_classifier_and_data_with_preprocessing():
     """Create data set and classifier for testing a multi-label
     classification scenario with a preprocessing pipeline.
 
@@ -164,8 +164,8 @@ def make_classifier_and_data_own_preprocessing():
         sublinear_tf=True,
         max_features=70000
     )
-    bclf = OneVsRestClassifier(LinearSVC())
-    base_estimator = make_pipeline(vectorizer, bclf)
+    binary_clf = OneVsRestClassifier(LinearSVC())
+    base_estimator = make_pipeline(vectorizer, binary_clf)
 
     labels = [
         [names[target]] + [names[target].split(".")[0]]
@@ -177,7 +177,7 @@ def make_classifier_and_data_own_preprocessing():
     clf = make_classifier(
         base_estimator=base_estimator,
         class_hierarchy=class_hierarchy,
-        preprocessing=True,
+        feature_extraction="raw",
         mlb=mlb,
         use_decision_function=True
     )

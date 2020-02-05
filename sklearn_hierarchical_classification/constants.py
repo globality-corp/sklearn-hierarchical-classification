@@ -14,6 +14,7 @@ METAFEATURES = "metafeatures"
 
 # Enumeration of valid configuration types
 VALID_ALGORITHM = ("lcn", "lcpn")
+VALID_FEATURE_EXTRACTION = ("preprocessed", "raw")
 VALID_PREDICTION_DEPTH = ("mlnp", "nmlnp")
 VALID_TRAINING_STRATEGY = ("exclusive", "less_exclusive", "inclusive", "less_inclusive",
                            "siblings", "exclusive_siblings")

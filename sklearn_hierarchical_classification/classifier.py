@@ -134,8 +134,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting
         this value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
 
-    preprocessing : bool
-        Determines if the classifier has its own preprocessing (for text processing for example).
+    feature_extraction : "preprocessed", "raw"
+        Determines the feature extraction policy the classifier uses.
+        When set to "raw", the classifier will expect the raw training examples are passed in to `.fit()` and `.train()`
+        as X. This means that the base_estimator should point to a sklearn Pipeline that includes feature extraction.
+        When set to "preprocessed", the classifier will expect X to be a pre-computed feature (sparse) matrix.
 
     mlb : MultiLabelBinarizer or None
         For multi-label classification, the MultiLabelBinarizer instance that was used for creating the y variable.
@@ -162,10 +165,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     """
 
-    def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
-                 algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 root=ROOT, progress_wrapper=None, preprocessing=False, mlb=None,
-                 mlb_prediction_threshold=0., use_decision_function=False):
+    def __init__(
+        self,
+        base_estimator=None,
+        class_hierarchy=None,
+        prediction_depth="mlnp",
+        algorithm="lcpn",
+        training_strategy=None,
+        stopping_criteria=None,
+        root=ROOT,
+        progress_wrapper=None,
+        feature_extraction="preprocessed",
+        mlb=None,
+        mlb_prediction_threshold=0.,
+        use_decision_function=False,
+    ):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -174,7 +188,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.stopping_criteria = stopping_criteria
         self.root = root
         self.progress_wrapper = progress_wrapper
-        self.preprocessing = preprocessing
+        self.feature_extraction = feature_extraction
         self.mlb = mlb
         self.mlb_prediction_threshold = mlb_prediction_threshold
         self.use_decision_function = use_decision_function
@@ -199,8 +213,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
 
         """
-        if self.preprocessing:
-            # In pre-processing mode, only validate targets (y) format and
+        if self.feature_extraction == "raw":
+            # In raw mode, only validate targets (y) format and
             # that targets and training data (X) are of same cardinality, since
             # X will in general not be a 2D feature matrix, but rather the raw training examples,
             # e.g. text snippets or images.
@@ -233,8 +247,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             if node != self.root
         )
 
-        if not self.preprocessing:
-            # When not in pre-processing mode, recursively build training feature sets for each node in graph
+        if self.feature_extraction == "preprocessed":
+            # When not in raw mode, recursively build training feature sets for each node in graph
             with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
                 self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
@@ -268,7 +282,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             else:
                 return path[-1]
 
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             return np.array([
                 _classify(X[i])
                 for i in range(len(X))
@@ -300,7 +314,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             _, scores = self._recursive_predict(x, root=self.root)
             return scores
 
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             return np.array([
                 _classify(X[i])
                 for i in range(len(X))
@@ -348,7 +362,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             self.graph_.nodes[node_id]["X"] = []
         else:
             self.graph_.nodes[node_id]["X"] = csr_matrix(
@@ -387,7 +401,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return X_out
 
     def _build_features(self, X, y, indices):
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             X_ = [X[ix] for ix in indices]
         else:
             X_ = extract_rows_csr(X, indices)
@@ -427,7 +441,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             * "n_targets" - Number of targets (classes) to classify into at given node.
 
         """
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
+            # In raw mode, we do not know which training examples are "zeroed out" for which node
+            # since we do not recursively build features until the recursive training phase which comes afterwards.
+            # Therefore, the number of targets is simply the number of unique labels in y
             return dict(
                 n_samples=len(X),
                 n_targets=len(np.unique(y)),
@@ -468,7 +485,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 )
                 return
 
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             X_ = X
             nnz_rows = range(len(X))
             Xl = len(X_)
@@ -493,13 +510,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 # take all non zero, only compare in side the siblings
                 idx = np.where(y_.sum(1) > 0)[0]
                 y_ = y_[idx, :]
-                if self.preprocessing:
+                if self.feature_extraction == "raw":
                     X_ = [X_[tk] for tk in idx]
                 else:
                     X_ = X_[idx, :]
         else:
             # Class hierarchy graph is a DAG
-            if self.preprocessing:
+            if self.feature_extraction == "raw":
                 X_, y_ = apply_rollup_Xy_raw(X_, y_rolled_up)
             else:
                 X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
@@ -514,7 +531,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             num_targets,
         )
 
-        if not self.preprocessing and X_.shape[0] == 0:
+        if self.feature_extraction == "preprocessed" and X_.shape[0] == 0:
             # No training data could be materialized for current node
             # TODO: support a "strict" mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
@@ -536,7 +553,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        if self.preprocessing:
+        if self.feature_extraction == "raw":
             if len(X_) > 0:
                 clf.fit(X=X_, y=y_)
                 self.logger.debug(
@@ -565,7 +582,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         while clf:
             if self.use_decision_function and hasattr(clf, "decision_function"):
-                if self.preprocessing:
+                if self.feature_extraction == "raw":
                     probs = clf.decision_function([x])
                     argmax = np.argmax(probs)
                     score = probs[0, argmax]
