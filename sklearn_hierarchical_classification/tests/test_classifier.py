@@ -24,11 +24,11 @@ from sklearn.utils.estimator_checks import check_estimator
 from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
 from sklearn_hierarchical_classification.constants import CLASSIFIER, DEFAULT, ROOT
 from sklearn_hierarchical_classification.tests.fixtures import (
-    make_classifier_and_data,
     make_classifier,
+    make_classifier_and_data,
     make_clothing_graph_and_data,
     make_digits_dataset,
-    make_mlb_classifier_and_data_with_preprocessing,
+    make_mlb_classifier_and_data_with_feature_extraction_pipeline,
 )
 from sklearn_hierarchical_classification.tests.matchers import matches_graph
 
@@ -81,9 +81,9 @@ def test_trivial_hierarchy_classification():
     assert_that(accuracy, is_(close_to(1., delta=0.05)))
 
 
-def test_mlb_hierarchy_classification_with_preprocessing():
-    """Test multi-label classification with pre-processing pipeline"""
-    clf, (X, y) = make_mlb_classifier_and_data_with_preprocessing()
+def test_mlb_hierarchy_classification_with_feature_extraction_pipeline():
+    """Test multi-label classification with a feature extraction pipeline"""
+    clf, (X, y) = make_mlb_classifier_and_data_with_feature_extraction_pipeline()
 
     X_train, X_test, y_train, y_test = train_test_split(
         X,

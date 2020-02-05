@@ -141,9 +141,9 @@ def make_classifier_and_data(
     return clf, (X, y)
 
 
-def make_mlb_classifier_and_data_with_preprocessing():
+def make_mlb_classifier_and_data_with_feature_extraction_pipeline():
     """Create data set and classifier for testing a multi-label
-    classification scenario with a preprocessing pipeline.
+    classification scenario with a feature extraction pipeline.
 
     """
     newsgroups_train = fetch_20newsgroups(subset="train")
