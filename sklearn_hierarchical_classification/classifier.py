@@ -275,7 +275,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         check_is_fitted(self, "graph_")
 
         def _classify(x):
-            # TODO support multi-label / paths?
             path, _ = self._recursive_predict(x, root=self.root)
             if self.mlb:
                 return path
