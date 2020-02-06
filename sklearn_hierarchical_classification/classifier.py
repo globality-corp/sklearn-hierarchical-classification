@@ -228,7 +228,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             if len(X) != y.shape[0]:
                 raise ValueError("bad input shape: len(X) != y.shape[0]")
         else:
-            X, y = check_X_y(X, y, accept_sparse="csr")
+            X, y = check_X_y(
+                X,
+                y,
+                accept_sparse="csr",
+                multi_output=(self.mlb is not None),
+            )
 
         check_classification_targets(y)
         if sample_weight is not None:
