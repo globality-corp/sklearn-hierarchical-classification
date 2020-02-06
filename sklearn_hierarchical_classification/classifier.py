@@ -24,6 +24,7 @@ from sklearn.utils.validation import (
 from sklearn_hierarchical_classification.array import (
     apply_along_rows,
     apply_rollup_Xy,
+    apply_rollup_Xy_raw,
     extract_rows_csr,
     flatten_list,
     nnz_rows_ix,
@@ -47,37 +48,37 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
     Hierarchical classification deals with the scenario where our target classes have
     inherent structure that can be represented as a tree or a directed acyclic graph (DAG),
     with nodes representing the target classes themselves, and edges representing their inter-relatedness,
-    e.g 'IS A' semantics.
+    e.g "IS A" semantics.
 
     Within this general framework, several distinctions can be made based on a few key modelling decisions:
 
     - Multi-label classification - Do we support classifying into more than a single target class/label
     - Mandatory / Non-mandatory leaf node prediction - Do we require that classification always results with
-      classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
+        classes corresponding to leaf nodes, or can intermediate nodes also be treated as valid output predictions.
     - Local classifiers - the local (or "base") classifiers can theoretically be chosen to be of any kind, but we
-      distinguish between three main modes of local classification:
+        distinguish between three main modes of local classification:
             * "One classifier per parent node" - where each non-leaf node can be fitted with a multi-class
-              classifier to predict which one of its child nodes is relevant for given example.
+                classifier to predict which one of its child nodes is relevant for given example.
             * "One classifier per node" - where each node is fitted with a binary "membership" classifier which
-              returns a binary (or a probability) score indicating the fitness for that node and the current
-              example.
+                returns a binary (or a probability) score indicating the fitness for that node and the current
+                example.
             * Global / "big bang" classifiers - where a single classifier predicts the full path in the hierarchy
-              for a given example.
+                for a given example.
 
     The nomenclature used here is based on the framework outlined in [1].
 
     Parameters
     ----------
     base_estimator : classifier object, function, dict, or None
-        A scikit-learn compatible classifier object implementing 'fit' and 'predict_proba' to be used as the
+        A scikit-learn compatible classifier object implementing "fit" and "predict_proba" to be used as the
         base classifier.
         If a callable function is given, it will be called to evaluate which classifier to instantiate for
         current node. The function will be called with the current node and the graph instance.
         Alternatively, a dictionary mapping classes to classifier objects can be given. In this case,
         when building the classifier tree, the dictionary will be consulted and if a key is found matching
         a particular node, the base classifier pointed to in the dict will be used. Since this is most often
-        useful for specifying classifiers on only a handlful of objects, a special 'DEFAULT' key can be used to
-        set the base classifier to use as a catch all.
+        useful for specifying classifiers on only a handlful of objects, a special "DEFAULT" key can be used to
+        set the base classifier to use as a "catch all".
         If not provided, a base estimator will be chosen by the framework using various meta-learning
         heuristics (WIP).
 
@@ -105,11 +106,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     training_strategy: "exclusive", "less_exclusive", "inclusive", "less_inclusive",
                        "siblings", "exclusive_siblings", or None.
-        This parameter is used when the 'algorithm' parameter is to set to "lcn", and dictates how training data
+        This parameter is used when the "algorithm" parameter is to set to "lcn", and dictates how training data
         is constructed for training the binary classifier at each node.
 
     stopping_criteria: function, float, or None.
-        This parameter is used when the 'prediction_depth' parameter is set to "nmlnp", and is used to evaluate
+        This parameter is used when the "prediction_depth" parameter is set to "nmlnp", and is used to evaluate
         at a given node whether classification should terminate or continue further down the hierarchy.
 
         When set to a float, the prediction will stop if the reported confidence at current classifier is below
@@ -125,13 +126,31 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         The unique identifier for the qualified root node in the class hierarchy. The hierarchical classifier
         assumes that the given class hierarchy graph is a rooted DAG, e.g has a single designated root node
         of in-degree 0. This node is associated with a special identifier which defaults to a framework provided one,
-        but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there's no need
+        but can be overridden by user in some cases, e.g if the original taxonomy is already rooted and there"s no need
         for injecting an artifical root node.
 
     progress_wrapper : progress generator or None
         If value is set, will attempt to use the given generator to display progress updates. This added functionality
         is especially useful within interactive environments (e.g in a testing harness or a Jupyter notebook). Setting
         this value will also enable verbose logging. Common values in tqdm are `tqdm_notebook` or `tqdm`
+
+    feature_extraction : "preprocessed", "raw"
+        Determines the feature extraction policy the classifier uses.
+        When set to "raw", the classifier will expect the raw training examples are passed in to `.fit()` and `.train()`
+        as X. This means that the base_estimator should point to a sklearn Pipeline that includes feature extraction.
+        When set to "preprocessed", the classifier will expect X to be a pre-computed feature (sparse) matrix.
+
+    mlb : MultiLabelBinarizer or None
+        For multi-label classification, the MultiLabelBinarizer instance that was used for creating the y variable.
+
+    mlb_prediction_threshold : float
+        For multi-label prediction tasks (when `mlb` is set to a MultiLabelBinarizer instance), can define a prediction
+        score threshold to use for considering a label to be a prediction. Defaults to zero.
+
+    use_decision_function : bool
+        Some classifiers (e.g. sklearn.svm.SVC) expose a `.decision_function()` method which would take in the
+        feature matrix X and return a set of per-sample scores, corresponding to each label. Setting this to True
+        would attempt to use this method when it is exposed by the base classifier.
 
     Attributes
     ----------
@@ -146,9 +165,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
     """
 
-    def __init__(self, base_estimator=None, class_hierarchy=None, prediction_depth="mlnp",
-                 algorithm="lcpn", training_strategy=None, stopping_criteria=None,
-                 root=ROOT, progress_wrapper=None):
+    def __init__(
+        self,
+        base_estimator=None,
+        class_hierarchy=None,
+        prediction_depth="mlnp",
+        algorithm="lcpn",
+        training_strategy=None,
+        stopping_criteria=None,
+        root=ROOT,
+        progress_wrapper=None,
+        feature_extraction="preprocessed",
+        mlb=None,
+        mlb_prediction_threshold=0.,
+        use_decision_function=False,
+    ):
         self.base_estimator = base_estimator
         self.class_hierarchy = class_hierarchy
         self.prediction_depth = prediction_depth
@@ -157,6 +188,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.stopping_criteria = stopping_criteria
         self.root = root
         self.progress_wrapper = progress_wrapper
+        self.feature_extraction = feature_extraction
+        self.mlb = mlb
+        self.mlb_prediction_threshold = mlb_prediction_threshold
+        self.use_decision_function = use_decision_function
 
     def fit(self, X, y=None, sample_weight=None):
         """Fit underlying classifiers.
@@ -178,7 +213,23 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self
 
         """
-        X, y = check_X_y(X, y, accept_sparse='csr')
+        if self.feature_extraction == "raw":
+            # In raw mode, only validate targets (y) format and
+            # that targets and training data (X) are of same cardinality, since
+            # X will in general not be a 2D feature matrix, but rather the raw training examples,
+            # e.g. text snippets or images.
+            y = check_array(
+                y,
+                accept_sparse="csr",
+                force_all_finite=True,
+                ensure_2d=False,
+                dtype=None,
+            )
+            if len(X) != y.shape[0]:
+                raise ValueError("bad input shape: len(X) != y.shape[0]")
+        else:
+            X, y = check_X_y(X, y, accept_sparse="csr")
+
         check_classification_targets(y)
         if sample_weight is not None:
             check_consistent_length(y, sample_weight)
@@ -195,11 +246,11 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != self.root
         )
-        self.logger.debug("fit() - self.classes_ = %s", self.classes_)
 
-        # Recursively build training feature sets for each node in graph
-        with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
-            self._recursive_build_features(X, y, node_id=self.root, progress=progress)
+        if self.feature_extraction == "preprocessed":
+            # When not in raw mode, recursively build training feature sets for each node in graph
+            with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
+                self._recursive_build_features(X, y, node_id=self.root, progress=progress)
 
         # Recursively train base classifiers
         with self._progress(total=self.n_classes_ + 1, desc="Training base classifiers") as progress:
@@ -222,12 +273,21 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
-            # TODO support multi-label / paths?
             path, _ = self._recursive_predict(x, root=self.root)
-            return path[-1]
+            if self.mlb:
+                return path
+            else:
+                return path[-1]
+
+        if self.feature_extraction == "raw":
+            return np.array([
+                _classify(X[i])
+                for i in range(len(X))
+            ])
+        else:
+            X = check_array(X, accept_sparse="csr")
 
         y_pred = apply_along_rows(_classify, X=X)
         return y_pred
@@ -248,11 +308,18 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             order, as they appear in the attribute `classes_`.
         """
         check_is_fitted(self, "graph_")
-        X = check_array(X, accept_sparse="csr")
 
         def _classify(x):
             _, scores = self._recursive_predict(x, root=self.root)
             return scores
+
+        if self.feature_extraction == "raw":
+            return np.array([
+                _classify(X[i])
+                for i in range(len(X))
+            ])
+        else:
+            X = check_array(X, accept_sparse="csr")
 
         y_pred = apply_along_rows(_classify, X=X)
         return y_pred
@@ -294,10 +361,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return self.graph_.nodes[node_id]["X"]
 
         # Non-leaf node
-        self.graph_.nodes[node_id]["X"] = csr_matrix(
-            X.shape,
-            dtype=X.dtype,
-        )
+        if self.feature_extraction == "raw":
+            self.graph_.nodes[node_id]["X"] = []
+        else:
+            self.graph_.nodes[node_id]["X"] = csr_matrix(
+                X.shape,
+                dtype=X.dtype,
+            )
 
         for child_node_id in self.graph_.successors(node_id):
             self.graph_.nodes[node_id]["X"] += \
@@ -308,7 +378,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     progress=progress,
                 )
 
-        # Build and store meta-features for node
+        # Build and store metafeatures for node
         self.graph_.nodes[node_id][METAFEATURES] = self._build_metafeatures(
             X=self.graph_.nodes[node_id]["X"],
             y=y,
@@ -330,7 +400,10 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         return X_out
 
     def _build_features(self, X, y, indices):
-        X_ = extract_rows_csr(X, indices)
+        if self.feature_extraction == "raw":
+            X_ = [X[ix] for ix in indices]
+        else:
+            X_ = extract_rows_csr(X, indices)
 
         # Perform feature selection
         X_ = self._select_features(X=X_, y=np.array(y)[indices])
@@ -363,10 +436,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         -------
         metafeatures : dict
             Python dictionary of meta-features. The following meta-features are computed by default:
-            * 'n_samples' - Number of samples used to train classifier at given node.
-            * 'n_targets' - Number of targets (classes) to classify into at given node.
+            * "n_samples" - Number of samples used to train classifier at given node.
+            * "n_targets" - Number of targets (classes) to classify into at given node.
 
         """
+        if self.feature_extraction == "raw":
+            # In raw mode, we do not know which training examples are "zeroed out" for which node
+            # since we do not recursively build features until the recursive training phase which comes afterwards.
+            # Therefore, the number of targets is simply the number of unique labels in y
+            return dict(
+                n_samples=len(X),
+                n_targets=len(np.unique(y)),
+            )
+
         # Indices of non-zero rows in X, i.e rows corresponding to relevant samples for this node.
         ix = nnz_rows_ix(X)
 
@@ -402,35 +484,55 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 )
                 return
 
-        X = self.graph_.nodes[node_id]["X"]
-        nnz_rows = nnz_rows_ix(X)
-        X_ = X[nnz_rows, :]
+        if self.feature_extraction == "raw":
+            X_ = X
+            nnz_rows = range(len(X))
+            Xl = len(X_)
+        else:
+            X = self.graph_.nodes[node_id]["X"]
+            nnz_rows = nnz_rows_ix(X)
+            X_ = X[nnz_rows, :]
+            Xl = X_.shape
 
         y_rolled_up = rollup_nodes(
             graph=self.graph_,
             source=node_id,
             targets=[y[idx] for idx in nnz_rows],
+            mlb=self.mlb
         )
 
         if self.is_tree_:
-            y_ = flatten_list(y_rolled_up)
+            if self.mlb is None:
+                y_ = flatten_list(y_rolled_up)
+            else:
+                y_ = self.mlb.transform(y_rolled_up)
+                # take all non zero, only compare in side the siblings
+                idx = np.where(y_.sum(1) > 0)[0]
+                y_ = y_[idx, :]
+                if self.feature_extraction == "raw":
+                    X_ = [X_[tk] for tk in idx]
+                else:
+                    X_ = X_[idx, :]
         else:
             # Class hierarchy graph is a DAG
-            X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
+            if self.feature_extraction == "raw":
+                X_, y_ = apply_rollup_Xy_raw(X_, y_rolled_up)
+            else:
+                X_, y_ = apply_rollup_Xy(X_, y_rolled_up)
 
         num_targets = len(np.unique(y_))
 
         self.logger.debug(
             "_train_local_classifier() - Training local classifier for node: %s, X_.shape: %s, len(y): %s, n_targets: %s",  # noqa:E501
             node_id,
-            X_.shape,
+            Xl,
             len(y_),
             num_targets,
         )
 
-        if X_.shape[0] == 0:
+        if self.feature_extraction == "preprocessed" and X_.shape[0] == 0:
             # No training data could be materialized for current node
-            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            # TODO: support a "strict" mode flag to explicitly enable/disable fallback logic here?
             self.logger.warning(
                 "_train_local_classifier() - not enough training data available to train, classification in branch will terminate at node %s",  # noqa:E501
                 node_id,
@@ -438,7 +540,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             return
         elif num_targets == 1:
             # Training data could be materialized for only a single target at current node
-            # TODO: support a 'strict' mode flag to explicitly enable/disable fallback logic here?
+            # TODO: support a "strict" mode flag to explicitly enable/disable fallback logic here?
             constant = y_[0]
             self.logger.debug(
                 "_train_local_classifier() - only a single target (child node) available to train classifier for node %s, Will trivially predict %s",  # noqa:E501
@@ -450,51 +552,105 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         else:
             clf = self._base_estimator_for(node_id)
 
-        clf.fit(X=X_, y=y_)
-        self.graph_.nodes[node_id][CLASSIFIER] = clf
+        if self.feature_extraction == "raw":
+            if len(X_) > 0:
+                clf.fit(X=X_, y=y_)
+                self.logger.debug(
+                    "_train_local_classifier() - training node %s ",  # noqa:E501
+                    node_id,
+                )
+                self.graph_.nodes[node_id][CLASSIFIER] = clf
+            else:
+                self.logger.debug(
+                    "_train_local_classifier() - could not train  node %s ",  # noqa:E501
+                    node_id,
+                )
 
-    def _recursive_predict(self, x, root):
+        else:
+            clf.fit(X=X_, y=y_)
+            self.graph_.nodes[node_id][CLASSIFIER] = clf
+
+    def _recursive_predict(self, x, root):  # noqa:C901 TODO: refactor
+        if CLASSIFIER not in self.graph_.nodes[root]:
+            return None, None
+
         clf = self.graph_.nodes[root][CLASSIFIER]
         path = [root]
         path_proba = []
         class_proba = np.zeros_like(self.classes_, dtype=np.float64)
 
         while clf:
-            probs = clf.predict_proba(x)[0]
-            argmax = np.argmax(probs)
-            score = probs[argmax]
+            if self.use_decision_function and hasattr(clf, "decision_function"):
+                if self.feature_extraction == "raw":
+                    probs = clf.decision_function([x])
+                    argmax = np.argmax(probs)
+                    score = probs[0, argmax]
+
+                else:
+                    probs = clf.decision_function(x)
+                    argmax = np.argmax(probs)
+                    score = probs[argmax]
+            else:
+                probs = clf.predict_proba(x)[0]
+                argmax = np.argmax(probs)
+                score = probs[argmax]
+
             path_proba.append(score)
+            if self.mlb is not None:
+                predictions = []
 
             # Report probabilities in terms of complete class hierarchy
+            if len(clf.classes_) == 1:
+                prediction = clf.classes_[0]
+
             for local_class_idx, class_ in enumerate(clf.classes_):
-                try:
-                    class_idx = self.classes_.index(class_)
-                except ValueError:
-                    # This may happen if the classes_ enumeration we construct during fit()
-                    # has a mismatch with the individual node classifiers' classes_.
-                    self.logger.error(
-                        "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
-                        class_,
-                        type(class_),
-                        path,
-                    )
-                    raise
+                if self.mlb:
+                    # when we have a multi-label binarizer
+                    class_idx = class_
+                    class_proba[class_idx] = probs[0, local_class_idx]
+                    if class_proba[class_idx] > self.mlb_prediction_threshold:
+                        predictions.append(self.mlb.classes_[class_])
+                else:
+                    try:
+                        class_idx = self.classes_.index(class_)
+                    except ValueError:
+                        # This may happen if the classes_ enumeration we construct during fit()
+                        # has a mismatch with the individual node classifiers" classes_.
+                        self.logger.error(
+                            "Could not find index in self.classes_ for class_ = '%s' (type: %s). path: %s",
+                            class_,
+                            type(class_),
+                            path,
+                        )
+                        raise
+                    if len(probs.shape) > 1 and probs.shape[0] == 1:
+                        class_proba[class_idx] = probs[0, local_class_idx]
+                        if local_class_idx == argmax:
+                            prediction = class_
+                    else:
+                        class_proba[class_idx] = probs[local_class_idx]
+                        if local_class_idx == argmax:
+                            prediction = class_
 
-                class_proba[class_idx] = probs[local_class_idx]
-                if local_class_idx == argmax:
-                    prediction = class_
+            if self.mlb is None:
+                if self._should_early_terminate(
+                    current_node=path[-1],
+                    prediction=prediction,
+                    score=score,
+                ):
+                    break
 
-            if self._should_early_terminate(
-                current_node=path[-1],
-                prediction=prediction,
-                score=score,
-            ):
-                break
-
-            # Update current path
-            path.append(prediction)
-
-            clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
+                # Update current path
+                path.append(prediction)
+                clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
+            else:
+                clf = None
+                for prediction in predictions:
+                    pred_path, preds_prob = self._recursive_predict(x, prediction)
+                    path.append(prediction)
+                    if preds_prob is not None:
+                        class_proba += preds_prob
+                        path.extend(pred_path)
 
         return path, class_proba
 
@@ -502,8 +658,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         """
         Evaluate whether classification should terminate at given step.
 
-        This depends on whether early-termination, as dictated by the the 'prediction_depth'
-          and 'stopping_criteria' parameters, is triggered.
+        This depends on whether early-termination, as dictated by the the "prediction_depth"
+          and "stopping_criteria" parameters, is triggered.
 
         """
         if self.prediction_depth != "nmlnp":

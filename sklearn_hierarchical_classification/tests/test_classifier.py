@@ -28,6 +28,7 @@ from sklearn_hierarchical_classification.tests.fixtures import (
     make_classifier_and_data,
     make_clothing_graph_and_data,
     make_digits_dataset,
+    make_mlb_classifier_and_data_with_feature_extraction_pipeline,
 )
 from sklearn_hierarchical_classification.tests.matchers import matches_graph
 
@@ -78,6 +79,25 @@ def test_trivial_hierarchy_classification():
     accuracy = accuracy_score(y_test, y_pred)
 
     assert_that(accuracy, is_(close_to(1., delta=0.05)))
+
+
+def test_mlb_hierarchy_classification_with_feature_extraction_pipeline():
+    """Test multi-label classification with a feature extraction pipeline"""
+    clf, (X, y) = make_mlb_classifier_and_data_with_feature_extraction_pipeline()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.30,
+        random_state=RANDOM_STATE,
+    )
+
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict_proba(X_test)
+    y_pred[where(y_pred == 0)] = -1
+    accuracy = accuracy_score(y_test, y_pred > -0.2)
+
+    assert_that(accuracy, is_(close_to(.8, delta=0.05)))
 
 
 def test_base_estimator_as_dict():

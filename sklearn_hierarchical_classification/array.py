@@ -55,8 +55,8 @@ def apply_rollup_Xy(X, y):
         # No expansion needed
         return X, flatten_list(y)
 
-    # Performance improvements require csr matrix
     if not isinstance(X, csr_matrix):
+        # Performance improvements require csr matrix
         X = csr_matrix(X)
 
     indptr = np.zeros((n_rows+1), dtype=np.int32)
@@ -87,6 +87,40 @@ def apply_rollup_Xy(X, y):
 
     y_ = flatten_list(y)
     return csr_matrix((data, indices, indptr), shape=(n_rows, X.shape[1]), dtype=X.dtype), y_
+
+
+def apply_rollup_Xy_raw(X, y):
+    """
+    Parameters
+    ----------
+    X : List
+
+    y : list-of-lists - [n_samples]
+        For each sample, y maintains list of labels this sample should be used for in training.
+
+    Returns
+    -------
+    X_, y_
+        Transformed by 'flattening' out y parameter and duplicating corresponding rows in X
+
+    """
+    # Compute number of rows we will have after transformation
+    n_rows = sum(len(labelset) for labelset in y)
+
+    if n_rows == X.shape[0]:
+        # No expansion needed
+        return X, flatten_list(y)
+
+    # Our goal is to expand the equal labelsets into their own row within X
+    # We do this by repeating each row exactly "labelset" times
+    X_rows = []
+    for i, labelset in enumerate(y):
+        labelset_sz = len(labelset)
+        for j in range(labelset_sz):
+            X_rows.append(X[j])
+
+    y_ = flatten_list(y)
+    return X_rows, y_
 
 
 def extract_rows_csr(matrix, rows):
