@@ -503,7 +503,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             graph=self.graph_,
             source=node_id,
             targets=[y[idx] for idx in nnz_rows],
-            mlb=self.mlb
+            mlb=self.mlb,
         )
 
         if self.is_tree_:
@@ -511,7 +511,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 y_ = flatten_list(y_rolled_up)
             else:
                 y_ = self.mlb.transform(y_rolled_up)
-                # take all non zero, only compare in side the siblings
+                # take all non zero, only compare inside the siblings
                 idx = np.where(y_.sum(1) > 0)[0]
                 y_ = y_[idx, :]
                 if self.feature_extraction == "raw":
