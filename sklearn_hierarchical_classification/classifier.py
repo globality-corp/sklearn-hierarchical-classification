@@ -180,7 +180,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         root=ROOT,
         progress_wrapper=None,
         feature_extraction="preprocessed",
-        mlb=None,
         mlb_prediction_threshold=0.,
         use_decision_function=False,
     ):
@@ -193,7 +192,6 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.root = root
         self.progress_wrapper = progress_wrapper
         self.feature_extraction = feature_extraction
-        self.mlb = mlb
         self.mlb_prediction_threshold = mlb_prediction_threshold
         self.use_decision_function = use_decision_function
 
@@ -627,7 +625,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     class_idx = class_
                     class_proba[class_idx] = probs[0, local_class_idx]
                     if class_proba[class_idx] > self.mlb_prediction_threshold:
-                        predictions.append(self.mlb.classes_[class_])
+                        predictions.append(class_)
                 else:
                     try:
                         class_idx = self.classes_.index(class_)
