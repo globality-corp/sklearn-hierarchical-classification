@@ -37,7 +37,11 @@ from sklearn_hierarchical_classification.constants import (
 )
 from sklearn_hierarchical_classification.decorators import logger
 from sklearn_hierarchical_classification.dummy import DummyProgress
-from sklearn_hierarchical_classification.graph import make_flat_hierarchy, rollup_nodes
+from sklearn_hierarchical_classification.graph import (
+    make_flat_hierarchy,
+    rollup_nodes_1d,
+    rollup_nodes_2d,
+)
 from sklearn_hierarchical_classification.validation import is_estimator, validate_parameters
 
 
@@ -499,11 +503,19 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             X_ = X[nnz_rows, :]
             Xl = X_.shape
 
-        y_rolled_up = rollup_nodes(
-            graph=self.graph_,
-            source=node_id,
-            targets=[y[idx] for idx in nnz_rows],
-        )
+        if self.outputs_2d_:
+            # Multi-label targets case
+            y_rolled_up = rollup_nodes_2d(
+                graph=self.graph_,
+                source=node_id,
+                targets=[y[idx, :] for idx in nnz_rows],
+            )
+        else:
+            y_rolled_up = rollup_nodes_1d(
+                graph=self.graph_,
+                source=node_id,
+                targets=[y[idx] for idx in nnz_rows],
+            )
 
         if self.is_tree_:
             # Class hierarchy is a tree graph
