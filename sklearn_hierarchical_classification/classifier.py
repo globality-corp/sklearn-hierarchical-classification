@@ -232,7 +232,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 X,
                 y,
                 accept_sparse="csr",
-                multi_output=(self.mlb is not None),
+                multi_output=True,
             )
 
         check_classification_targets(y)
@@ -251,7 +251,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             for node in self.graph_.nodes()
             if node != self.root
         )
-
+        self.outputs_2d_ = (y.ndim == 2)
         if self.feature_extraction == "preprocessed":
             # When not in raw mode, recursively build training feature sets for each node in graph
             with self._progress(total=self.n_classes_ + 1, desc="Building features") as progress:
@@ -281,7 +281,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         def _classify(x):
             path, _ = self._recursive_predict(x, root=self.root)
-            if self.mlb:
+            if self.outputs_2d_:
                 return path
             else:
                 return path[-1]
@@ -351,7 +351,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             # Already visited this node in feature building phase
             return self.graph_.nodes[node_id]["X"]
 
-        self.logger.debug("Building features for node: %s", node_id)
+        # self.logger.debug("Building features for node: %s", node_id)
         progress.update(1)
 
         if self.graph_.out_degree(node_id) == 0:
@@ -503,14 +503,13 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
             graph=self.graph_,
             source=node_id,
             targets=[y[idx] for idx in nnz_rows],
-            mlb=self.mlb,
         )
 
         if self.is_tree_:
-            if self.mlb is None:
-                y_ = flatten_list(y_rolled_up)
-            else:
-                y_ = self.mlb.transform(y_rolled_up)
+            # Class hierarchy is a tree graph
+            if self.outputs_2d_:
+                # Multi-label classification case
+                y_ = y_rolled_up
                 # take all non zero, only compare inside the siblings
                 idx = np.where(y_.sum(1) > 0)[0]
                 y_ = y_[idx, :]
@@ -518,6 +517,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     X_ = [X_[tk] for tk in idx]
                 else:
                     X_ = X_[idx, :]
+            else:
+                y_ = flatten_list(y_rolled_up)
         else:
             # Class hierarchy graph is a DAG
             if self.feature_extraction == "raw":
@@ -601,7 +602,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 score = probs[argmax]
 
             path_proba.append(score)
-            if self.mlb is not None:
+            if self.outputs_2d_:
                 predictions = []
 
             # Report probabilities in terms of complete class hierarchy
@@ -609,7 +610,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 prediction = clf.classes_[0]
 
             for local_class_idx, class_ in enumerate(clf.classes_):
-                if self.mlb:
+                if self.outputs_2d_:
                     # when we have a multi-label binarizer
                     class_idx = class_
                     class_proba[class_idx] = probs[0, local_class_idx]
@@ -637,7 +638,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                         if local_class_idx == argmax:
                             prediction = class_
 
-            if self.mlb is None:
+            if not self.outputs_2d_:
                 if self._should_early_terminate(
                     current_node=path[-1],
                     prediction=prediction,
@@ -649,6 +650,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 path.append(prediction)
                 clf = self.graph_.nodes[prediction].get(CLASSIFIER, None)
             else:
+                # multi-label case
                 clf = None
                 for prediction in predictions:
                     pred_path, preds_prob = self._recursive_predict(x, prediction)

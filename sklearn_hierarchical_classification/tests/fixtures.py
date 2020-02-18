@@ -6,11 +6,17 @@ from itertools import product
 
 import numpy as np
 from networkx import DiGraph, gn_graph, to_dict_of_lists
-from sklearn.datasets import fetch_20newsgroups, load_digits, make_blobs
+from sklearn.datasets import (
+    fetch_20newsgroups,
+    fetch_20newsgroups_vectorized,
+    load_digits,
+    make_blobs,
+)
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.multiclass import OneVsRestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.preprocessing import LabelBinarizer, MultiLabelBinarizer
 from sklearn.svm import LinearSVC
 
 from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
@@ -51,7 +57,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
 
 
 def make_newsgroups_hierarchy():
-    """Create a class hierarchy based on newsgroups dataset."""
+    """Create a class hierarchy based on newsgroups dataset, suitable for multi-label classification."""
     hierarchy = {}
     hierarchy[ROOT] = ["alt", "comp", "rec", "misc", "sci", "soc", "talk"]
     hierarchy["alt"] = [
@@ -139,6 +145,26 @@ def make_classifier_and_data(
     )
 
     return clf, (X, y)
+
+
+def make_mlb_classifier_and_data():
+    """Create a data set and classifier instance for testing multi-label
+    classification scenarios.
+
+    """
+    newsgroups_train = fetch_20newsgroups_vectorized(subset="train")
+    X, y = newsgroups_train.data, newsgroups_train.target
+    # Transform y to multi-label (2D) format
+    y_ = LabelBinarizer().fit_transform(y)
+
+    class_hierarchy = make_newsgroups_hierarchy()
+
+    clf = make_classifier(
+        base_estimator=KNeighborsClassifier,
+        class_hierarchy=class_hierarchy,
+    )
+
+    return clf, (X, y_)
 
 
 def make_mlb_classifier_and_data_with_feature_extraction_pipeline():

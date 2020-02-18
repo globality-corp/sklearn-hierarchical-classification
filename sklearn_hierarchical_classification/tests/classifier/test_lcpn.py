@@ -18,6 +18,7 @@ from sklearn_hierarchical_classification.tests.fixtures import (
     make_classifier,
     make_classifier_and_data,
     make_digits_dataset,
+    make_mlb_classifier_and_data,
     make_mlb_classifier_and_data_with_feature_extraction_pipeline,
 )
 
@@ -25,7 +26,7 @@ from sklearn_hierarchical_classification.tests.fixtures import (
 RANDOM_STATE = 42
 
 
-def test_trivial_hierarchy_classification():
+def test_lcpn_with_trivial_hierarchy_classification():
     """Test that a trivial (degenerate) hierarchy behaves as expected."""
     clf, (X, y) = make_classifier_and_data(n_classes=5)
 
@@ -43,7 +44,7 @@ def test_trivial_hierarchy_classification():
     assert_that(accuracy, is_(close_to(1., delta=0.05)))
 
 
-def test_nmlnp_strategy_with_float_stopping_criteria():
+def test_lcpn_with_nmlnp_strategy_and_float_stopping_criteria():
     # since NMLNP results in a mix of intermediate and leaf nodes,
     # make sure they are all of same dtype (str)
     class_hierarchy = {
@@ -77,7 +78,7 @@ def test_nmlnp_strategy_with_float_stopping_criteria():
     assert_that(list(y_pred), has_item("B"))
 
 
-def test_nmlnp_strategy_on_tree_with_dummy_classifier():
+def test_lcpn_with_nmlnp_strategy_on_tree_with_dummy_classifier():
     """Test classification works on a tree graph when one of the nodes has out-degree 1 resulting in
     creation of a "dummy" classifier at that node to trivially predict its child."""
     # since NMLNP results in a mix of intermediate and lefa nodes,
@@ -114,7 +115,7 @@ def test_nmlnp_strategy_on_tree_with_dummy_classifier():
     assert_that(list(y_pred), has_item("4"))
 
 
-def test_nmlnp_strategy_on_dag_with_dummy_classifier():
+def test_lcpn_with_nmlnp_strategy_on_dag_with_dummy_classifier():
     """Test classification works on a "deep" DAG when one of the nodes has out-degree 1,
     resulting in creation of a "dummy" classifier at that node to trivially predict its child.
     This test case actually tests a few more subtle edge cases:
@@ -157,7 +158,26 @@ def test_nmlnp_strategy_on_dag_with_dummy_classifier():
     assert_that(list(y_pred), has_item("3a"))
 
 
-def test_mlb_hierarchy_classification_with_feature_extraction_pipeline():
+def test_lcpn_with_mlb_hierarchy_classification():
+    """Test multi-label classification with the lcpn strategy."""
+    clf, (X, y) = make_mlb_classifier_and_data()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.30,
+        random_state=RANDOM_STATE,
+    )
+
+    clf.fit(X_train, y_train)
+    y_pred = clf.predict_proba(X_test)
+    y_pred[where(y_pred == 0)] = -1
+    accuracy = accuracy_score(y_test, y_pred > -0.2)
+
+    assert_that(accuracy, is_(close_to(.8, delta=0.05)))
+
+
+def test_lcpn_with_mlb_hierarchy_classification_and_feature_extraction_pipeline():
     """Test multi-label classification with a feature extraction pipeline"""
     clf, (X, y) = make_mlb_classifier_and_data_with_feature_extraction_pipeline()
 

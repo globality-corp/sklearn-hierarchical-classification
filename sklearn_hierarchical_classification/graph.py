@@ -16,35 +16,56 @@ def make_flat_hierarchy(targets, root):
     return adjacency
 
 
-def rollup_nodes(graph, source, targets, mlb=None):
-    """Perform a "roll-up" of given target nodes up to the nodes immediately below
-    given source node in given graph.
+def rollup_nodes(graph, source, targets):
+    """Perform a "roll-up" of given targets (nodes) up to the nodes sitting immediately below
+    the given source node in the given (directed) graph.
+
+    For each target, we find all (simple) paths between it and the source node, and then
+    accumulate all the immediate child nodes of the source node corresponding to those paths.
+
+    Easily understood by way of example, assuming the following graph:
+
+                        SOURCE
+                        /    \
+                       A      B
+                     /  \  /  |
+                    C    D    E
+
+    >>> rollup_nodes(graph, source="SOURCE", targets=["C, "D", "E"])
+    [["A"], ["A", "B"], ["B"]]
+
+    Parameters
+    ----------
+    graph : `networkx.DiGraph` instance
+        The graph instance we're performing roll up over
+
+    source : hashable type
+        The identifier of the source node in the graph which are performing roll up relative to.
+
+    targets : list
+        The list of target labels (y).
+        These targets should correspond to node ids in the given graph since we will be using them
+        to perform path search on the graph.
+
+    Returns
+    -------
+    resultset: list-of-lists
+        A list-of-lists, with each nested list corresponding to an item in the input `targets` parameter,
+        and containing the node ids of the immediate children of the source node which were reached
+        as part of enumerating all simple paths from the target to the source node.
 
     """
-    result_cache = {}
+    cache = {}
     resultset = []
     for node_id in targets:
-        if mlb and type(node_id) == ndarray:
-            # multi-label binarizer was passed and node_id is an array, perform a roll-up
-            # for multi-label targets.
-            result_row = []
-            for label in node_id.nonzero()[0]:
-                if label not in result_cache:
-                    result_cache[label] = list(all_simple_paths(G=graph, source=source, target=mlb.classes_[label]))
-                all_paths = result_cache[label]
-                result_row.extend([
-                    path[1]
-                    for path in all_paths
-                ])
-            resultset.append(result_row)
-        else:
-            if node_id not in result_cache:
-                result_cache[node_id] = list(all_simple_paths(G=graph, source=source, target=node_id))
-            all_paths = result_cache[node_id]
-            resultset.append([
-                path[1]
-                for path in all_paths
-            ])
+        if node_id not in cache:
+            cache[node_id] = list(all_simple_paths(G=graph, source=source, target=node_id))
+        all_paths = cache[node_id]
+
+        resultset.append([
+            path[1]
+            for path in all_paths
+        ])
 
     assert len(resultset) == len(targets)
 
@@ -52,6 +73,19 @@ def rollup_nodes(graph, source, targets, mlb=None):
 
 
 def root_nodes(graph):
+    """Return all nodes in graph which are considered as root nodes (having in-degree of zero).
+
+    Parameters
+    ----------
+    graph : `networkx.DiGraph` instance
+        The graph instance we're searching over
+
+    Returns
+    -------
+    nodes: generator
+        Generator expression over graph node objects corresponding to the found root nodes if any
+
+    """
     return (
         node
         for node, in_degree in graph.in_degree()
@@ -60,6 +94,19 @@ def root_nodes(graph):
 
 
 def terminal_nodes(graph):
+    """Return all nodes in graph which are considered as terminal nodes (having out-degree of zero).
+
+    Parameters
+    ----------
+    graph : `networkx.DiGraph` instance
+        The graph instance we're searching over
+
+    Returns
+    -------
+    nodes: generator
+        Generator expression over graph node objects corresponding to the found terminal nodes if any
+
+    """
     return (
         node
         for node, out_degree in graph.out_degree()

@@ -1,7 +1,18 @@
 import numpy as np
 from hamcrest import assert_that, equal_to, is_
+from parameterized import parameterized
 
-from sklearn_hierarchical_classification.array import apply_rollup_Xy
+from sklearn_hierarchical_classification.array import apply_rollup_Xy, flatten_list
+
+
+@parameterized([
+    ([[0], [1], [2]], [0, 1, 2]),
+    ([[0, 1], [2], [3, 4]], [0, 1, 2, 3, 4]),
+])
+def test_flatten_list(input, expected):
+    flattened = flatten_list(input)
+
+    assert_that(flattened, is_(equal_to(expected)))
 
 
 def test_apply_rollup_xy():

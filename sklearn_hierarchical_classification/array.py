@@ -6,6 +6,16 @@ from scipy.sparse import csr_matrix, issparse
 
 
 def flatten_list(lst):
+    """Flatten down a list-of-lists to a list with all elements of child lists expanded.
+
+    This does *not* work recursively, only on 1-level deep list containment.
+
+    Example:
+
+    >>> flatten_list([[0], [1, 2], [3, 4]])
+    [0, 1, 2, 3, 4]
+
+    """
     return list(chain(*lst))
 
 
@@ -48,11 +58,14 @@ def apply_rollup_Xy(X, y):
         Transformed by 'flattening' out y parameter and duplicating corresponding rows in X
 
     """
-    # Compute number of rows we will have after transformation
+    # Compute number of rows we will have after transformation, which corresponds
+    # to the total number of labels we have in y.
     n_rows = sum(len(labelset) for labelset in y)
 
     if n_rows == X.shape[0]:
-        # No expansion needed
+        # This will happen when we have exactly one label in y per row,
+        # coresponding to the non-multi-label scenario. No expansion needed,
+        # simply flatten out y by transforming it to a list-of-labels instead of list-of-lists.
         return X, flatten_list(y)
 
     if not isinstance(X, csr_matrix):
@@ -85,12 +98,20 @@ def apply_rollup_Xy(X, y):
     indices = np.concatenate(indices)
     data = np.concatenate(data)
 
+    X_ = csr_matrix(
+        (data, indices, indptr),
+        shape=(n_rows, X.shape[1]),
+        dtype=X.dtype,
+    )
     y_ = flatten_list(y)
-    return csr_matrix((data, indices, indptr), shape=(n_rows, X.shape[1]), dtype=X.dtype), y_
+
+    return X_, y_
 
 
 def apply_rollup_Xy_raw(X, y):
     """
+    Similar to `apply_rollup_Xy`, but for when X is the raw data matrix (E.g. 1D list of texts or raw image data).
+
     Parameters
     ----------
     X : List
