@@ -101,8 +101,8 @@ def fill_ancestors(y, graph, root, copy=True):
             # Our stub root node, can skip
             continue
         ix_rows = np.where(y[:, target] > 0)[0]
-        # all ancestors, except the last one which would be the root node
-        ancestors = list(distances.keys())[:-1]
+        # all ancestors, except the root node
+        ancestors = list(k for k in distances.keys() if k != root)
         y_[tuple(np.meshgrid(ix_rows, ancestors))] = 1
     graph.reverse(copy=False)
     return y_
@@ -150,7 +150,7 @@ def h_precision_score(y_true, y_pred, class_hierarchy, root=ROOT):
     true_positives = len(ix[0])
     all_results = np.count_nonzero(y_pred_)
 
-    return true_positives / all_results
+    return float(true_positives) / float(all_results)
 
 
 def h_recall_score(y_true, y_pred, class_hierarchy, root=ROOT):
@@ -195,7 +195,7 @@ def h_recall_score(y_true, y_pred, class_hierarchy, root=ROOT):
     true_positives = len(ix[0])
     all_positives = np.count_nonzero(y_true_)
 
-    return true_positives / all_positives
+    return float(true_positives) / float(all_positives)
 
 
 def h_fbeta_score(y_true, y_pred, class_hierarchy, beta=1., root=ROOT):
