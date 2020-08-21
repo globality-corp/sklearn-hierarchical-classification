@@ -119,8 +119,8 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         When set to a function, the callback function will be called with the current node attributes,
         including its metafeatures, and the current classification results.
         This allows the user to define arbitrary logic that can decide whether classification should stop at
-        the current node or continue. The function should return True if classification should continue,
-        or False if classification should stop at current node.
+        the current node or continue. The function should return False if classification should continue,
+        or True if classification should stop at current node.
 
     root : integer, string
         The unique identifier for the qualified root node in the class hierarchy. The hierarchical classifier
@@ -503,7 +503,12 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         if self.is_tree_:
             if self.mlb is None:
-                y_ = flatten_list(y_rolled_up)
+                if self.feature_extraction == "raw":
+                    X_, y_ = [X_[i] for i, labels in enumerate(y_rolled_up) if labels], flatten_list(y_rolled_up)
+                    # self.logger.debug('Features for current node: {}'.format(node_id))
+                    # self.logger.debug(X_[:10])
+                else:
+                    y_ = flatten_list(y_rolled_up)
             else:
                 y_ = self.mlb.transform(y_rolled_up)
                 # take all non zero, only compare in side the siblings
@@ -581,19 +586,30 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         while clf:
             if self.use_decision_function and hasattr(clf, "decision_function"):
+                # if self.feature_extraction == "raw":
+                #     probs = clf.decision_function([x])
+                #     argmax = np.argmax(probs)
+                #     score = probs[0, argmax]
+
+                # else:
+                #     probs = clf.decision_function(x)
+                #     argmax = np.argmax(probs)
+                #     score = probs[argmax]
+                probs = clf.decision_function([x]) if self.feature_extraction == "raw" else clf.decision_function(x)
+                last_axis = probs.ndim-1
+                if probs.ndim == 1 and probs.shape[0] == 1:
+                    probs = np.concatenate((-probs, probs), axis=last_axis)
+                argmax = probs.argmax(axis=last_axis)
+                score = probs[argmax] if last_axis == 0 else probs[0, argmax]
+            else:
                 if self.feature_extraction == "raw":
-                    probs = clf.decision_function([x])
+                    probs = clf.predict_proba([x])
                     argmax = np.argmax(probs)
                     score = probs[0, argmax]
-
                 else:
-                    probs = clf.decision_function(x)
+                    probs = clf.predict_proba(x)[0]
                     argmax = np.argmax(probs)
                     score = probs[argmax]
-            else:
-                probs = clf.predict_proba(x)[0]
-                argmax = np.argmax(probs)
-                score = probs[argmax]
 
             path_proba.append(score)
             if self.mlb is not None:
@@ -637,6 +653,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                     current_node=path[-1],
                     prediction=prediction,
                     score=score,
+                    depth=len(path)
                 ):
                     break
 
@@ -654,7 +671,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
 
         return path, class_proba
 
-    def _should_early_terminate(self, current_node, prediction, score):
+    def _should_early_terminate(self, current_node, prediction, score, depth):
         """
         Evaluate whether classification should terminate at given step.
 
@@ -685,6 +702,7 @@ class HierarchicalClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
                 current_node=self.graph_.nodes[current_node],
                 prediction=prediction,
                 score=score,
+                depth=depth
             )
 
         return False

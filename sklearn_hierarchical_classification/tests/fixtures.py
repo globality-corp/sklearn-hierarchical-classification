@@ -11,10 +11,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import MultiLabelBinarizer
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, SVC
+from collections import defaultdict
 
 from sklearn_hierarchical_classification.classifier import HierarchicalClassifier
 from sklearn_hierarchical_classification.constants import ROOT
+from sklearn_hierarchical_classification.array import flatten_list
 
 
 def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
@@ -50,7 +52,7 @@ def make_class_hierarchy(n, n_intermediate=None, n_leaf=None):
     return to_dict_of_lists(G)
 
 
-def make_newsgroups_hierarchy():
+def make_newsgroups_hierarchy(categories=None):
     """Create a class hierarchy based on newsgroups dataset."""
     hierarchy = {}
     hierarchy[ROOT] = ["alt", "comp", "rec", "misc", "sci", "soc", "talk"]
@@ -86,6 +88,21 @@ def make_newsgroups_hierarchy():
         "talk.politics.misc",
         "talk.religion.misc",
     ]
+
+    if categories:
+        allowed_cats = set(categories + [c.split('.')[0] for c in categories])
+        filtered = defaultdict(list)        
+        
+        def filter_hierarchy(key):
+            if key not in hierarchy:
+                return
+            for child in hierarchy[key]:
+                if child in allowed_cats:
+                    filtered[key].append(child)
+                    filter_hierarchy(child)
+        
+        filter_hierarchy(ROOT)
+        return filtered
 
     return hierarchy
 
@@ -180,6 +197,55 @@ def make_mlb_classifier_and_data_with_feature_extraction_pipeline():
         feature_extraction="raw",
         mlb=mlb,
         use_decision_function=True
+    )
+
+    return clf, (X, y)
+
+
+def make_classifier_and_data_with_feature_extraction_pipeline(use_mlb=False, use_decision_function=False):
+    # restrict size to train probabilistic SVM quicky
+    cats = ['comp.graphics', 'comp.windows.x', 'rec.autos', 'rec.motorcycles']
+    newsgroups_train = fetch_20newsgroups(subset="train", categories=cats)
+    X, Y = newsgroups_train.data, newsgroups_train.target
+    class_hierarchy = make_newsgroups_hierarchy(categories=cats)
+    names = newsgroups_train.target_names
+
+    vectorizer = TfidfVectorizer(
+        strip_accents=None,
+        lowercase=True,
+        analyzer="word",
+        ngram_range=(1, 3),
+        max_df=1.0,
+        min_df=0.0,
+        binary=False,
+        use_idf=True,
+        smooth_idf=True,
+        sublinear_tf=True,
+        max_features=70000
+    )
+    binary_clf = OneVsRestClassifier(SVC(kernel='linear', probability=True))
+    base_estimator = make_pipeline(vectorizer, binary_clf)
+
+    labels = [
+        [names[target]] + [names[target].split(".")[0]]
+        for target in Y
+    ]
+
+    clf_kwargs = {}
+    y = [names[target] for target in Y]
+    if use_mlb:
+        mlb = MultiLabelBinarizer()
+        y = mlb.fit_transform(labels)
+        clf_kwargs['mlb'] = mlb
+
+    if use_decision_function:
+        clf_kwargs['use_decision_function'] = True
+
+    clf = make_classifier(
+        base_estimator=base_estimator,
+        class_hierarchy=class_hierarchy,
+        feature_extraction="raw",
+        **clf_kwargs
     )
 
     return clf, (X, y)
